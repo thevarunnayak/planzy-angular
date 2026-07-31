@@ -1,23 +1,56 @@
-import { Component, EventEmitter, Input, Output } from '@angular/core';
+import { Component, EventEmitter, Input, Output, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { IconComponent, IconName } from '../icon/icon.component';
+import { ButtonComponent } from '../button/button.component';
 
 @Component({
   selector: 'app-board-dialog',
   standalone: true,
-  imports: [CommonModule, FormsModule, IconComponent],
+  imports: [CommonModule, FormsModule, IconComponent, ButtonComponent],
   template: `
     <div class="modal-overlay bounce-in" (click)="onBackdropClick($event)">
       <div class="modal-card glass-card" (click)="$event.stopPropagation()">
         <div class="modal-header">
-          <h3>{{ initialName ? 'Edit Board' : 'Create New Workspace Board' }}</h3>
+          <h3>{{ initialName ? 'Edit Board Settings' : 'Create New Workspace Board' }}</h3>
           <button class="close-btn" (click)="cancelled.emit()">
             <app-icon name="x" [size]="16"></app-icon>
           </button>
         </div>
 
         <form (ngSubmit)="submitForm()" class="modal-form">
+          <!-- Board Visibility Type Selector (isGroup Boolean) -->
+          <div class="form-group">
+            <label>Board Access & Visibility Type</label>
+            <div class="type-selector-pills">
+              <button
+                type="button"
+                class="type-btn"
+                [class.selected]="!isGroup"
+                (click)="isGroup = false"
+              >
+                <app-icon name="bookmark" [size]="16"></app-icon>
+                <div class="type-text">
+                  <strong>Individual Board</strong>
+                  <span>Private to you only</span>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                class="type-btn"
+                [class.selected]="isGroup"
+                (click)="isGroup = true"
+              >
+                <app-icon name="target" [size]="16"></app-icon>
+                <div class="type-text">
+                  <strong>Group Board</strong>
+                  <span>Invite members & assign tasks</span>
+                </div>
+              </button>
+            </div>
+          </div>
+
           <div class="form-group">
             <label>Board Icon</label>
             <div class="icon-selector-grid">
@@ -39,7 +72,7 @@ import { IconComponent, IconName } from '../icon/icon.component';
             <input
               type="text"
               class="form-input"
-              placeholder="e.g. My Sprint Board, Personal Planning"
+              placeholder="e.g. Sprint Board, Product Roadmap"
               [(ngModel)]="boardName"
               name="boardName"
               required
@@ -59,10 +92,10 @@ import { IconComponent, IconName } from '../icon/icon.component';
           </div>
 
           <div class="modal-footer">
-            <button type="button" class="jelly-btn secondary" (click)="cancelled.emit()">Cancel</button>
-            <button type="submit" class="jelly-btn" [disabled]="!boardName.trim()">
+            <app-button variant="secondary" (btnClick)="cancelled.emit()">Cancel</app-button>
+            <app-button type="submit" [disabled]="!boardName.trim()">
               {{ initialName ? 'Save Changes' : 'Create Board' }}
-            </button>
+            </app-button>
           </div>
         </form>
       </div>
@@ -83,7 +116,7 @@ import { IconComponent, IconName } from '../icon/icon.component';
 
     .modal-card {
       width: 100%;
-      max-width: 440px;
+      max-width: 480px;
       padding: 24px;
       background: var(--surface);
       border-radius: var(--radius-xl);
@@ -129,6 +162,42 @@ import { IconComponent, IconName } from '../icon/icon.component';
         font-size: 0.8rem;
         font-weight: 800;
         color: var(--text-muted);
+      }
+    }
+
+    .type-selector-pills {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .type-btn {
+      background: var(--background);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 10px 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      text-align: left;
+      transition: all 0.2s ease;
+
+      .type-text {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+
+        strong { font-size: 0.85rem; color: var(--text); }
+        span { font-size: 0.7rem; color: var(--text-muted); }
+      }
+
+      &.selected {
+        border-color: var(--primary);
+        background: var(--primary-light);
+        color: var(--primary);
+
+        .type-text strong { color: var(--primary); }
       }
     }
 
@@ -181,17 +250,19 @@ import { IconComponent, IconName } from '../icon/icon.component';
     }
   `]
 })
-export class BoardDialogComponent {
+export class BoardDialogComponent implements OnInit {
   @Input() initialName = '';
   @Input() initialDescription = '';
   @Input() initialEmoji = 'folder';
+  @Input() initialIsGroup = false;
 
-  @Output() submitted = new EventEmitter<{ name: string; description: string; emoji: string }>();
+  @Output() submitted = new EventEmitter<{ name: string; description: string; emoji: string; isGroup: boolean }>();
   @Output() cancelled = new EventEmitter<void>();
 
   boardName = '';
   boardDescription = '';
   selectedIcon: IconName = 'folder';
+  isGroup = false;
 
   availableIcons: IconName[] = ['folder', 'kanban', 'dashboard', 'star', 'target', 'bookmark'];
 
@@ -199,6 +270,7 @@ export class BoardDialogComponent {
     this.boardName = this.initialName;
     this.boardDescription = this.initialDescription;
     this.selectedIcon = (this.initialEmoji as IconName) || 'folder';
+    this.isGroup = this.initialIsGroup || false;
   }
 
   submitForm(): void {
@@ -206,7 +278,8 @@ export class BoardDialogComponent {
       this.submitted.emit({
         name: this.boardName.trim(),
         description: this.boardDescription.trim(),
-        emoji: this.selectedIcon
+        emoji: this.selectedIcon,
+        isGroup: this.isGroup
       });
     }
   }

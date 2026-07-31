@@ -92,6 +92,11 @@ import { IconComponent } from '../../../shared/components/icon/icon.component';
         </div>
 
         <div class="footer-meta">
+          @if (task.assignee) {
+            <div class="assignee-badge-avatar" [title]="'Assigned to ' + task.assignee.name">
+              {{ (task.assignee.name || 'A').charAt(0).toUpperCase() }}
+            </div>
+          }
           @if (task.comments && task.comments.length > 0) {
             <span class="meta-item">
               <app-icon name="comment" [size]="12"></app-icon>
@@ -299,6 +304,20 @@ import { IconComponent } from '../../../shared/components/icon/icon.component';
       background: var(--primary-light);
       padding: 3px 8px;
       border-radius: var(--radius-sm);
+    }
+
+    .assignee-badge-avatar {
+      width: 22px;
+      height: 22px;
+      border-radius: var(--radius-full);
+      background: var(--primary);
+      color: white;
+      font-size: 0.68rem;
+      font-weight: 900;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.15);
     }
 
     .footer-meta {

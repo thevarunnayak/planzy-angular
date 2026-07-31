@@ -7,10 +7,18 @@ export interface Subtask {
   completed: boolean;
 }
 
+export interface TaskAssignee {
+  userId: string;
+  name: string;
+  email: string;
+  avatar?: string;
+}
+
 export interface TaskComment {
   id: string;
-  author: string;
-  avatar: string;
+  authorId: string;
+  authorName: string;
+  authorAvatar?: string;
   content: string;
   createdAt: string;
 }
@@ -31,6 +39,7 @@ export interface Task {
   labels: string[];
   subtasks: Subtask[];
   comments: TaskComment[];
+  assignee?: TaskAssignee;
   history?: TaskHistoryItem[];
   dueDate?: string;
   estimatedHours?: number;
@@ -64,6 +73,7 @@ export interface CreateTaskDto {
   dueDate?: string;
   estimatedHours?: number;
   labels?: string[];
+  assignee?: TaskAssignee;
   sticker?: string;
 }
 
@@ -76,6 +86,8 @@ export interface UpdateTaskDto {
   estimatedHours?: number;
   actualHours?: number;
   labels?: string[];
+  assignee?: TaskAssignee;
+  comments?: TaskComment[];
   isFavorite?: boolean;
   sticker?: string;
 }

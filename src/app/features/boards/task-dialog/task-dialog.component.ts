@@ -1,14 +1,16 @@
-import { Component, Input, Output, EventEmitter, inject, OnInit, signal } from '@angular/core';
+import { Component, Input, Output, EventEmitter, inject, OnInit, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Task, TaskPriority } from '../../../core/models/task.model';
+import { Task, TaskAssignee, TaskComment, TaskPriority } from '../../../core/models/task.model';
 import { TaskStore } from '../../../core/stores/task.store';
 import { BoardStore } from '../../../core/stores/board.store';
+import { AppwriteService } from '../../../core/services/appwrite.service';
 import { IconComponent, IconName } from '../../../shared/components/icon/icon.component';
 import { CustomSelectComponent, SelectOption } from '../../../shared/components/custom-select/custom-select.component';
 import { CustomDatePickerComponent } from '../../../shared/components/custom-date-picker/custom-date-picker.component';
 import { CustomNumberInputComponent } from '../../../shared/components/custom-number-input/custom-number-input.component';
 import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialog/confirm-dialog.component';
+import { ButtonComponent } from '../../../shared/components/button/button.component';
 
 @Component({
   selector: 'app-task-dialog',
@@ -20,7 +22,8 @@ import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialo
     CustomSelectComponent,
     CustomDatePickerComponent,
     CustomNumberInputComponent,
-    ConfirmDialogComponent
+    ConfirmDialogComponent,
+    ButtonComponent
   ],
   template: `
     @if (targetBoardId) {
@@ -103,8 +106,23 @@ import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialo
               </div>
             </div>
 
-            <!-- Due Date & Est. Hours (Custom Number Input) -->
+            <!-- Task Assignee (Group Boards) & Due Date -->
             <div class="form-row">
+              <div class="form-group flex-1">
+                <label>Assignee (Group Member)</label>
+                <select
+                  class="form-select"
+                  [ngModel]="selectedAssigneeUserId"
+                  (ngModelChange)="onAssigneeSelect($event)"
+                  name="assigneeSelect"
+                >
+                  <option value="">Unassigned</option>
+                  @for (mem of boardMembers(); track mem.userId) {
+                    <option [value]="mem.userId">{{ mem.name }} ({{ mem.role }})</option>
+                  }
+                </select>
+              </div>
+
               <div class="form-group flex-1">
                 <label>Due Date</label>
                 <app-custom-date-picker
@@ -112,7 +130,10 @@ import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialo
                   (valueChange)="dueDate = $event"
                 ></app-custom-date-picker>
               </div>
+            </div>
 
+            <!-- Est. Hours & Labels Row -->
+            <div class="form-row">
               <div class="form-group flex-1">
                 <label>Est. Hours</label>
                 <app-custom-number-input
@@ -122,25 +143,69 @@ import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialo
                   placeholder="1.5"
                 ></app-custom-number-input>
               </div>
+
+              <div class="form-group flex-1">
+                <label>Labels (Comma separated)</label>
+                <input
+                  type="text"
+                  class="form-input"
+                  placeholder="e.g. Design, Frontend"
+                  [ngModel]="labelsInput"
+                  (ngModelChange)="labelsInput = $event"
+                  name="labelsInput"
+                />
+              </div>
             </div>
 
-            <!-- Labels Input -->
-            <div class="form-group">
-              <label>Labels (Comma separated)</label>
-              <input
-                type="text"
-                class="form-input"
-                placeholder="e.g. Design, Frontend, Urgent"
-                [ngModel]="labelsInput"
-                (ngModelChange)="labelsInput = $event"
-                name="labelsInput"
-              />
-            </div>
+            <!-- Task Activity & Comments Section -->
+            @if (isEditMode) {
+              <div class="comments-section">
+                <div class="section-title">
+                  <app-icon name="comment" [size]="16"></app-icon>
+                  <span>Activity & Comments ({{ comments.length }})</span>
+                </div>
+
+                <div class="comments-list">
+                  @for (c of comments; track c.id) {
+                    <div class="comment-item">
+                      <div class="comment-avatar">
+                        {{ (c.authorName || 'U').charAt(0).toUpperCase() }}
+                      </div>
+                      <div class="comment-bubble">
+                        <div class="comment-meta">
+                          <strong>{{ c.authorName }}</strong>
+                          <span class="time">{{ c.createdAt | date:'shortTime' }}</span>
+                        </div>
+                        <p class="comment-text">{{ c.content }}</p>
+                      </div>
+                    </div>
+                  }
+                </div>
+
+                <div class="add-comment-row">
+                  <input
+                    type="text"
+                    class="form-input flex-1"
+                    placeholder="Write a comment..."
+                    [(ngModel)]="newCommentText"
+                    name="newCommentText"
+                    (keydown.enter)="$event.preventDefault(); postComment()"
+                  />
+                  <app-button
+                    size="sm"
+                    [disabled]="!newCommentText.trim()"
+                    (btnClick)="postComment()"
+                  >
+                    Post
+                  </app-button>
+                </div>
+              </div>
+            }
           </form>
 
           <!-- Fixed Modal Footer -->
           <div class="modal-footer">
-            @if (isEditMode && task) {
+            @if (isEditMode && task && boardStore.canCreateTask()) {
               <button type="button" class="jelly-btn danger-btn margin-right-auto" (click)="confirmDeleteModalOpen.set(true)">
                 <app-icon name="trash" [size]="14"></app-icon>
                 <span>Delete</span>
@@ -192,7 +257,7 @@ import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialo
 
     .modal-card {
       width: 100%;
-      max-width: 520px;
+      max-width: 560px;
       padding: 24px 24px 20px 24px;
       background: var(--surface);
       border-radius: var(--radius-xl);
@@ -200,7 +265,7 @@ import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialo
       display: flex;
       flex-direction: column;
       gap: 14px;
-      max-height: 85vh;
+      max-height: 88vh;
       overflow: hidden;
     }
 
@@ -295,7 +360,7 @@ import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialo
       }
     }
 
-    .form-input, .form-textarea {
+    .form-input, .form-textarea, .form-select {
       padding: 10px 14px;
       border-radius: var(--radius-md);
       border: 1.5px solid var(--border);
@@ -306,6 +371,81 @@ import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialo
       outline: none;
 
       &:focus { border-color: var(--primary); }
+    }
+
+    .comments-section {
+      margin-top: 10px;
+      padding-top: 14px;
+      border-top: 1.5px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+
+      .section-title {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.88rem;
+        font-weight: 800;
+        color: var(--primary);
+      }
+    }
+
+    .comments-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      max-height: 180px;
+      overflow-y: auto;
+    }
+
+    .comment-item {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+    }
+
+    .comment-avatar {
+      width: 28px;
+      height: 28px;
+      border-radius: var(--radius-full);
+      background: var(--primary);
+      color: white;
+      font-size: 0.75rem;
+      font-weight: 900;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .comment-bubble {
+      background: var(--background);
+      border: 1.5px solid var(--border);
+      padding: 8px 12px;
+      border-radius: var(--radius-md);
+      flex: 1;
+
+      .comment-meta {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 4px;
+        strong { font-size: 0.8rem; color: var(--text); }
+        .time { font-size: 0.68rem; color: var(--text-muted); }
+      }
+
+      .comment-text {
+        font-size: 0.82rem;
+        color: var(--text);
+        line-height: 1.3;
+      }
+    }
+
+    .add-comment-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
     }
 
     .modal-footer {
@@ -327,7 +467,8 @@ export class TaskDialogComponent implements OnInit {
   @Output() closed = new EventEmitter<void>();
 
   private taskStore = inject(TaskStore);
-  private boardStore = inject(BoardStore);
+  boardStore = inject(BoardStore);
+  private appwriteService = inject(AppwriteService);
 
   isEditMode = false;
   targetBoardId = '';
@@ -339,6 +480,10 @@ export class TaskDialogComponent implements OnInit {
   estimatedHours?: number;
   sticker: IconName = 'bookmark';
   labelsInput = '';
+  selectedAssigneeUserId = '';
+  assignee?: TaskAssignee;
+  comments: TaskComment[] = [];
+  newCommentText = '';
 
   confirmDeleteModalOpen = signal(false);
 
@@ -350,6 +495,11 @@ export class TaskDialogComponent implements OnInit {
     { value: 'medium', label: 'Medium', icon: 'zap' },
     { value: 'low', label: 'Low', icon: 'bookmark' }
   ];
+
+  boardMembers = computed(() => {
+    const board = this.boardStore.boards().find(b => b.id === this.targetBoardId);
+    return board?.members || [];
+  });
 
   columnOptions = () => {
     const board = this.boardStore.boards().find(b => b.id === this.targetBoardId);
@@ -374,6 +524,9 @@ export class TaskDialogComponent implements OnInit {
       this.estimatedHours = this.task.estimatedHours;
       this.sticker = (this.task.sticker as IconName) || 'bookmark';
       this.labelsInput = this.task.labels.join(', ');
+      this.assignee = this.task.assignee;
+      this.selectedAssigneeUserId = this.task.assignee?.userId || '';
+      this.comments = this.task.comments || [];
     } else {
       const activeBoard = this.boardStore.activeBoard();
       this.targetBoardId = activeBoard ? activeBoard.id : (boards.length > 0 ? boards[0].id : '');
@@ -384,8 +537,46 @@ export class TaskDialogComponent implements OnInit {
     }
   }
 
+  onAssigneeSelect(userId: string): void {
+    this.selectedAssigneeUserId = userId;
+    if (!userId) {
+      this.assignee = undefined;
+    } else {
+      const mem = this.boardMembers().find(m => m.userId === userId);
+      if (mem) {
+        this.assignee = {
+          userId: mem.userId,
+          name: mem.name,
+          email: mem.email
+        };
+      }
+    }
+  }
+
   onPriorityChange(val: string): void {
     this.priority = val as TaskPriority;
+  }
+
+  postComment(): void {
+    if (!this.newCommentText.trim()) return;
+
+    const user = this.appwriteService.currentUser();
+    const newComment: TaskComment = {
+      id: `comment-${Date.now()}`,
+      authorId: user ? user.id : 'guest',
+      authorName: user ? user.name : 'Guest User',
+      content: this.newCommentText.trim(),
+      createdAt: new Date().toISOString()
+    };
+
+    this.comments.push(newComment);
+    this.newCommentText = '';
+
+    if (this.isEditMode && this.task) {
+      this.taskStore.updateTask(this.task.id, {
+        comments: this.comments
+      });
+    }
   }
 
   saveTask(): void {
@@ -405,6 +596,8 @@ export class TaskDialogComponent implements OnInit {
         dueDate: this.dueDate || undefined,
         estimatedHours: this.estimatedHours,
         sticker: this.sticker,
+        assignee: this.assignee,
+        comments: this.comments,
         labels
       });
     } else {
@@ -417,6 +610,7 @@ export class TaskDialogComponent implements OnInit {
         dueDate: this.dueDate || undefined,
         estimatedHours: this.estimatedHours,
         sticker: this.sticker,
+        assignee: this.assignee,
         labels
       });
     }

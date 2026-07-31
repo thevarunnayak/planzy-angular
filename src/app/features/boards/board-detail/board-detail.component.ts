@@ -10,10 +10,13 @@ import { KanbanColumnComponent } from '../kanban-column/kanban-column.component'
 import { TaskDialogComponent } from '../task-dialog/task-dialog.component';
 import { ColumnDialogComponent } from '../../../shared/components/column-dialog/column-dialog.component';
 import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialog/confirm-dialog.component';
+import { BoardMembersDialogComponent } from '../../../shared/components/board-members-dialog/board-members-dialog.component';
 import { CustomMultiSelectComponent, MultiSelectOption } from '../../../shared/components/custom-multi-select/custom-multi-select.component';
 import { CustomSortSelectComponent, SortSelectOption, SortState } from '../../../shared/components/custom-sort-select/custom-sort-select.component';
 import { TooltipDirective } from '../../../shared/directives/tooltip.directive';
 import { IconComponent } from '../../../shared/components/icon/icon.component';
+import { ButtonComponent } from '../../../shared/components/button/button.component';
+import { BadgeComponent } from '../../../shared/components/badge/badge.component';
 
 @Component({
   selector: 'app-board-detail',
@@ -26,10 +29,13 @@ import { IconComponent } from '../../../shared/components/icon/icon.component';
     TaskDialogComponent,
     ColumnDialogComponent,
     ConfirmDialogComponent,
+    BoardMembersDialogComponent,
     CustomMultiSelectComponent,
     CustomSortSelectComponent,
     TooltipDirective,
-    IconComponent
+    IconComponent,
+    ButtonComponent,
+    BadgeComponent
   ],
   template: `
     @if (boardStore.activeBoard(); as board) {
@@ -43,28 +49,48 @@ import { IconComponent } from '../../../shared/components/icon/icon.component';
                 <app-icon name="folder" [size]="24"></app-icon>
               </div>
               <div class="header-titles">
-                <h2 class="board-name-heading">{{ board.name }}</h2>
+                <div class="title-row">
+                  <h2 class="board-name-heading">{{ board.name }}</h2>
+                  <app-badge [variant]="board.isGroup ? 'urgent' : 'secondary'" size="sm">
+                    {{ board.isGroup ? 'Group Board' : 'Individual Board' }}
+                  </app-badge>
+                </div>
                 <p class="board-desc-sub">{{ board.description || 'Custom Kanban Workspace' }}</p>
               </div>
             </div>
 
             <div class="header-actions">
+              <!-- Members & Access Control Button -->
+              <button class="jelly-btn secondary" (click)="membersModalOpen.set(true)" appTooltip="Board Members & Sharing">
+                <app-icon name="target" [size]="16"></app-icon>
+                <span>Members ({{ board.members?.length || 1 }})</span>
+              </button>
+
               <button class="jelly-btn secondary" (click)="duplicateBoard(board.id)" appTooltip="Duplicate Board">
                 <app-icon name="copy" [size]="16"></app-icon>
                 <span>Duplicate</span>
               </button>
-              <button class="jelly-btn secondary" (click)="openAddColumnModal()" appTooltip="Add Custom Column">
-                <app-icon name="plus" [size]="16"></app-icon>
-                <span>Column</span>
-              </button>
-              <button class="jelly-btn danger-btn" (click)="confirmDeleteBoardId.set(board.id)" appTooltip="Delete Board">
-                <app-icon name="trash" [size]="16"></app-icon>
-                <span>Delete</span>
-              </button>
-              <button class="jelly-btn" (click)="openCreateTaskModal(board.columns[0] ? board.columns[0].id : '')" appTooltip="Add New Task">
-                <app-icon name="plus" [size]="16"></app-icon>
-                <span>Task</span>
-              </button>
+
+              @if (boardStore.canEditBoard()) {
+                <button class="jelly-btn secondary" (click)="openAddColumnModal()" appTooltip="Add Custom Column">
+                  <app-icon name="plus" [size]="16"></app-icon>
+                  <span>Column</span>
+                </button>
+              }
+
+              @if (boardStore.isOwner()) {
+                <button class="jelly-btn danger-btn" (click)="confirmDeleteBoardId.set(board.id)" appTooltip="Delete Board">
+                  <app-icon name="trash" [size]="16"></app-icon>
+                  <span>Delete</span>
+                </button>
+              }
+
+              @if (boardStore.canCreateTask()) {
+                <button class="jelly-btn" (click)="openCreateTaskModal(board.columns[0] ? board.columns[0].id : '')" appTooltip="Add New Task">
+                  <app-icon name="plus" [size]="16"></app-icon>
+                  <span>Task</span>
+                </button>
+              }
             </div>
           </div>
 
@@ -135,6 +161,13 @@ import { IconComponent } from '../../../shared/components/icon/icon.component';
             [task]="selectedTaskForEdit()"
             (closed)="closeTaskModal()"
           ></app-task-dialog>
+        }
+
+        <!-- Members & Roles Dialog Modal -->
+        @if (membersModalOpen()) {
+          <app-board-members-dialog
+            (closed)="membersModalOpen.set(false)"
+          ></app-board-members-dialog>
         }
 
         <!-- Custom Add Column Modal Popup -->
@@ -216,6 +249,12 @@ import { IconComponent } from '../../../shared/components/icon/icon.component';
       display: flex;
       align-items: center;
       justify-content: center;
+    }
+
+    .title-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
     }
 
     .board-name-heading {
@@ -413,6 +452,7 @@ export class BoardDetailComponent implements OnInit {
 
   dialogOpen = signal(false);
   columnModalOpen = signal(false);
+  membersModalOpen = signal(false);
   selectedTaskForEdit = signal<Task | null>(null);
   confirmDeleteBoardId = signal<string | null>(null);
 

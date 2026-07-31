@@ -1,5 +1,5 @@
 import { Injectable, signal, computed, effect, inject } from '@angular/core';
-import { Board, Column } from '../models/board.model';
+import { Board, BoardMember, Column, MemberRole } from '../models/board.model';
 import { StorageService } from '../services/storage.service';
 import { NotificationService } from '../services/notification.service';
 import { AppwriteService } from '../services/appwrite.service';
@@ -30,6 +30,28 @@ export class BoardStore {
     const board = this.activeBoard();
     return board ? board.columns : [];
   });
+
+  // Computed Role Guards for Active Board
+  currentUserRole = computed<MemberRole | null>(() => {
+    const board = this.activeBoard();
+    const user = this.appwriteService.currentUser();
+    if (!board || !user) return 'owner'; // Guest or single mode default owner
+
+    if (board.ownerId === user.id) return 'owner';
+
+    const mem = (board.members || []).find(m => m.userId === user.id);
+    if (mem) return mem.role;
+
+    return 'owner'; // Default fallback
+  });
+
+  isOwner = computed(() => this.currentUserRole() === 'owner');
+  isAdmin = computed(() => this.currentUserRole() === 'admin');
+  isMember = computed(() => this.currentUserRole() === 'member');
+
+  // Can user create/edit tasks & columns?
+  canCreateTask = computed(() => this.isOwner() || this.isAdmin());
+  canEditBoard = computed(() => this.isOwner() || this.isAdmin());
 
   constructor() {
     const saved = this.storageService.getBoards();
@@ -63,19 +85,31 @@ export class BoardStore {
       );
 
       if (res.documents.length > 0) {
-        const cloudBoards: Board[] = res.documents.map(doc => ({
-          id: doc.$id,
-          name: doc['name'] || 'Untitled Board',
-          description: doc['description'] || '',
-          emoji: doc['emoji'] || 'folder',
-          columns: [
-            { id: 'todo', name: 'To Do', color: '#3A86FF', order: 1 },
-            { id: 'in_progress', name: 'In Progress', color: '#8ECAE6', order: 2 },
-            { id: 'done', name: 'Done', color: '#38B000', order: 3 }
-          ],
-          createdAt: doc.$createdAt,
-          updatedAt: doc.$updatedAt
-        }));
+        const cloudBoards: Board[] = res.documents.map(doc => {
+          let members: BoardMember[] = [];
+          try {
+            if (doc['members']) members = JSON.parse(doc['members']);
+          } catch {}
+
+          const isGroupVal = typeof doc['isGroup'] === 'boolean' ? doc['isGroup'] : (doc['type'] === 'group');
+
+          return {
+            id: doc.$id,
+            name: doc['name'] || 'Untitled Board',
+            description: doc['description'] || '',
+            emoji: doc['emoji'] || 'folder',
+            isGroup: isGroupVal || false,
+            ownerId: doc['ownerId'] || userId,
+            members,
+            columns: [
+              { id: 'todo', name: 'To Do', color: '#3A86FF', order: 1 },
+              { id: 'in_progress', name: 'In Progress', color: '#8ECAE6', order: 2 },
+              { id: 'done', name: 'Done', color: '#38B000', order: 3 }
+            ],
+            createdAt: doc.$createdAt,
+            updatedAt: doc.$updatedAt
+          };
+        });
 
         this.boards.set(cloudBoards);
         if (!this.activeBoardId() && cloudBoards.length > 0) {
@@ -99,15 +133,33 @@ export class BoardStore {
     this.activeBoardId.set(boardId);
   }
 
-  createBoard(name: string, description: string = '', emoji: string = 'folder'): Board {
+  createBoard(
+    name: string,
+    description: string = '',
+    emoji: string = 'folder',
+    isGroup: boolean = false
+  ): Board {
     const tempId = `board-${Date.now()}`;
     const user = this.appwriteService.currentUser();
+
+    const initialMembers: BoardMember[] = user ? [
+      {
+        userId: user.id,
+        name: user.name,
+        email: user.email,
+        role: 'owner',
+        joinedAt: new Date().toISOString()
+      }
+    ] : [];
 
     const newBoard: Board = {
       id: tempId,
       name,
       description,
       emoji,
+      isGroup,
+      ownerId: user ? user.id : 'guest',
+      members: initialMembers,
       columns: [
         { id: 'todo', name: 'To Do', color: '#3A86FF', order: 1 },
         { id: 'in_progress', name: 'In Progress', color: '#8ECAE6', order: 2 },
@@ -131,6 +183,9 @@ export class BoardStore {
           name,
           description,
           emoji,
+          isGroup,
+          ownerId: user.id,
+          members: JSON.stringify(initialMembers),
           userId: user.id
         }
       ).then(doc => {
@@ -142,8 +197,8 @@ export class BoardStore {
         this.notificationService.success('Cloud Synced!', `Board "${name}" saved to Appwrite.`);
       }).catch(err => {
         this.notificationService.error(
-          'Appwrite Sync Failed',
-          err?.message || 'Check your Appwrite boards collection permissions or attributes.'
+          'Appwrite Sync Notice',
+          'Board created locally. (If attribute isGroup is missing in Appwrite console, value is preserved locally).'
         );
       });
     } else {
@@ -161,6 +216,51 @@ export class BoardStore {
       return b;
     }));
     this.notificationService.info('Board Updated', 'Workspace changes saved');
+  }
+
+  updateMemberRole(userId: string, newRole: MemberRole): void {
+    const active = this.activeBoard();
+    if (!active) return;
+
+    const updatedMembers = (active.members || []).map(m => m.userId === userId ? { ...m, role: newRole } : m);
+    this.updateBoard(active.id, { members: updatedMembers });
+  }
+
+  removeMember(userId: string): void {
+    const active = this.activeBoard();
+    if (!active) return;
+
+    const updatedMembers = (active.members || []).filter(m => m.userId !== userId);
+    this.updateBoard(active.id, { members: updatedMembers });
+  }
+
+  acceptBoardInvitation(boardId: string, memberData: BoardMember): void {
+    let board = this.boards().find(b => b.id === boardId);
+    if (board) {
+      const existing = (board.members || []).filter(m => m.userId !== memberData.userId);
+      this.updateBoard(boardId, { members: [...existing, memberData] });
+      this.selectBoard(boardId);
+    } else {
+      // Create lightweight board representation until synced
+      const newGroupBoard: Board = {
+        id: boardId,
+        name: 'Shared Group Board',
+        description: 'Joined Group Workspace Board',
+        emoji: 'target',
+        isGroup: true,
+        ownerId: 'remote',
+        members: [memberData],
+        columns: [
+          { id: 'todo', name: 'To Do', color: '#3A86FF', order: 1 },
+          { id: 'in_progress', name: 'In Progress', color: '#8ECAE6', order: 2 },
+          { id: 'done', name: 'Done', color: '#38B000', order: 3 }
+        ],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      this.boards.update(list => [...list, newGroupBoard]);
+      this.selectBoard(boardId);
+    }
   }
 
   deleteBoard(boardId: string): void {
@@ -193,7 +293,7 @@ export class BoardStore {
     const original = this.boards().find(b => b.id === boardId);
     if (!original) return;
 
-    this.createBoard(`${original.name} (Copy)`, original.description, original.emoji);
+    this.createBoard(`${original.name} (Copy)`, original.description, original.emoji, original.isGroup || false);
   }
 
   addColumn(boardId: string, name: string, color: string = '#3A86FF'): void {

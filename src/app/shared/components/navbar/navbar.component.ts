@@ -10,6 +10,7 @@ import { KeyboardShortcutsService } from '../../../core/services/keyboard-shortc
 import { TooltipDirective } from '../../directives/tooltip.directive';
 import { IconComponent } from '../icon/icon.component';
 import { ConfirmDialogComponent } from '../confirm-dialog/confirm-dialog.component';
+import { InvitationInboxDialogComponent } from '../invitation-inbox-dialog/invitation-inbox-dialog.component';
 
 @Component({
   selector: 'app-navbar',
@@ -19,7 +20,8 @@ import { ConfirmDialogComponent } from '../confirm-dialog/confirm-dialog.compone
     RouterLink,
     TooltipDirective,
     IconComponent,
-    ConfirmDialogComponent
+    ConfirmDialogComponent,
+    InvitationInboxDialogComponent
   ],
   template: `
     <header class="navbar">
@@ -53,6 +55,20 @@ import { ConfirmDialogComponent } from '../confirm-dialog/confirm-dialog.compone
             <app-icon name="moon" [size]="18"></app-icon>
           }
         </button>
+
+        <!-- Pending Invitations Bell Button -->
+        @if (appwriteService.isLoggedIn()) {
+          <button
+            class="icon-btn invite-bell-btn"
+            (click)="invitationModalOpen.set(true)"
+            appTooltip="Workspace Board Invitations"
+          >
+            <app-icon name="sparkles" [size]="18"></app-icon>
+            @if (appwriteService.pendingInvitations().length > 0) {
+              <span class="notification-badge">{{ appwriteService.pendingInvitations().length }}</span>
+            }
+          </button>
+        }
 
         <!-- Desktop-Only Quick Create Board Button -->
         <button class="jelly-btn secondary navbar-btn hide-on-mobile" (click)="openCreateBoardModal()" appTooltip="Create New Board">
@@ -103,6 +119,13 @@ import { ConfirmDialogComponent } from '../confirm-dialog/confirm-dialog.compone
           <app-icon name="menu" [size]="20"></app-icon>
         </button>
       </div>
+
+      <!-- Pending Invitations Inbox Modal -->
+      @if (invitationModalOpen()) {
+        <app-invitation-inbox-dialog
+          (closed)="invitationModalOpen.set(false)"
+        ></app-invitation-inbox-dialog>
+      }
 
       <!-- No Boards Available Prompt Modal -->
       @if (noBoardsPromptOpen()) {
@@ -231,11 +254,33 @@ import { ConfirmDialogComponent } from '../confirm-dialog/confirm-dialog.compone
       color: var(--text);
       cursor: pointer;
       transition: transform 0.2s ease;
+      position: relative;
 
       &:hover {
         transform: scale(1.08);
         border-color: var(--primary);
       }
+    }
+
+    .invite-bell-btn {
+      color: var(--primary);
+    }
+
+    .notification-badge {
+      position: absolute;
+      top: -2px;
+      right: -2px;
+      background: var(--danger);
+      color: white;
+      font-size: 0.68rem;
+      font-weight: 900;
+      width: 18px;
+      height: 18px;
+      border-radius: var(--radius-full);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
     }
 
     .mobile-menu-toggle-btn {
@@ -358,6 +403,7 @@ export class NavbarComponent {
 
   noBoardsPromptOpen = signal(false);
   userMenuOpen = signal(false);
+  invitationModalOpen = signal(false);
 
   openCmdPalette(): void {
     this.shortcutsService.toggleCommandPalette(true);

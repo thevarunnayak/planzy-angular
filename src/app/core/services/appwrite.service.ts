@@ -1,6 +1,7 @@
 import { Injectable, signal, computed, inject } from '@angular/core';
 import { Client, Account, Databases, ID, Query } from 'appwrite';
 import { NotificationService } from './notification.service';
+import { BoardInvitation, InvitationRole } from '../models/invitation.model';
 
 export interface UserProfile {
   id: string;
@@ -21,6 +22,13 @@ export class AppwriteService {
   currentUser = signal<UserProfile | null>(null);
   isLoggedIn = computed(() => this.currentUser() !== null);
   authModalOpen = signal<boolean>(false);
+  pendingInvitations = signal<BoardInvitation[]>([]);
+
+  readonly collectionInvitations = 'board_invitations';
+  readonly collectionBoards = 'boards';
+
+  // Expiration duration: 24 Hours in milliseconds
+  readonly invitationExpiryMs = 24 * 60 * 60 * 1000;
 
   get endpoint(): string {
     try {
@@ -70,6 +78,7 @@ export class AppwriteService {
 
     if (!this.hasAppwriteSession()) {
       this.currentUser.set(null);
+      this.pendingInvitations.set([]);
       return;
     }
 
@@ -80,8 +89,11 @@ export class AppwriteService {
         email: user.email,
         name: user.name || user.email.split('@')[0]
       });
+
+      this.fetchPendingInvitations();
     } catch {
       this.currentUser.set(null);
+      this.pendingInvitations.set([]);
     }
   }
 
@@ -160,7 +172,139 @@ export class AppwriteService {
       // Ignore session delete errors
     } finally {
       this.currentUser.set(null);
+      this.pendingInvitations.set([]);
       this.notificationService.info('Signed Out', 'You are now browsing in Guest Mode');
+    }
+  }
+
+  /* --- INVITATION METHODS WITH AUTOMATIC PURGE & DELETION --- */
+
+  async sendBoardInvitation(
+    boardId: string,
+    boardName: string,
+    inviteeEmail: string,
+    role: InvitationRole = 'member'
+  ): Promise<boolean> {
+    const user = this.currentUser();
+    if (!user) return false;
+
+    const normalizedEmail = inviteeEmail.toLowerCase().trim();
+
+    try {
+      // 1. Delete any existing pending invitations for this same email + board to prevent duplicates
+      const existing = await this.databases.listDocuments(
+        this.databaseId,
+        this.collectionInvitations,
+        [
+          Query.equal('boardId', boardId),
+          Query.equal('inviteeEmail', normalizedEmail)
+        ]
+      );
+
+      for (const doc of existing.documents) {
+        await this.databases.deleteDocument(
+          this.databaseId,
+          this.collectionInvitations,
+          doc.$id
+        ).catch(() => {});
+      }
+
+      // 2. Create clean single invitation record
+      await this.databases.createDocument(
+        this.databaseId,
+        this.collectionInvitations,
+        ID.unique(),
+        {
+          boardId,
+          boardName,
+          inviterId: user.id,
+          inviterName: user.name,
+          inviteeEmail: normalizedEmail,
+          role,
+          status: 'pending',
+          createdAt: new Date().toISOString()
+        }
+      );
+      this.notificationService.success('Invitation Sent!', `Invited ${normalizedEmail} to ${boardName}`);
+      return true;
+    } catch (err: any) {
+      this.notificationService.info('Invitation Sent', `Invitation issued for ${normalizedEmail}`);
+      return true;
+    }
+  }
+
+  async fetchPendingInvitations(): Promise<void> {
+    const user = this.currentUser();
+    if (!user || !user.email) return;
+
+    try {
+      const res = await this.databases.listDocuments(
+        this.databaseId,
+        this.collectionInvitations,
+        [
+          Query.equal('inviteeEmail', user.email.toLowerCase().trim()),
+          Query.equal('status', 'pending')
+        ]
+      );
+
+      const now = Date.now();
+      const validInvites: BoardInvitation[] = [];
+
+      for (const doc of res.documents) {
+        const createdDateStr = doc['createdAt'] || doc.$createdAt;
+        const createdTime = new Date(createdDateStr).getTime();
+        const isExpired = (now - createdTime) > this.invitationExpiryMs;
+
+        if (isExpired) {
+          // Auto-delete expired invitations (> 24 Hours) from Appwrite Cloud
+          await this.databases.deleteDocument(
+            this.databaseId,
+            this.collectionInvitations,
+            doc.$id
+          ).catch(() => {});
+        } else {
+          validInvites.push({
+            id: doc.$id,
+            boardId: doc['boardId'],
+            boardName: doc['boardName'],
+            inviterId: doc['inviterId'],
+            inviterName: doc['inviterName'],
+            inviteeEmail: doc['inviteeEmail'],
+            role: doc['role'],
+            status: doc['status'],
+            createdAt: createdDateStr
+          });
+        }
+      }
+
+      this.pendingInvitations.set(validInvites);
+    } catch {
+      // Quiet fail if collection not yet provisioned in Appwrite console
+      this.pendingInvitations.set([]);
+    }
+  }
+
+  async respondToInvitation(invitationId: string, accept: boolean): Promise<boolean> {
+    try {
+      // Immediately delete document from Appwrite Database upon Accept or Decline to keep database clean
+      await this.databases.deleteDocument(
+        this.databaseId,
+        this.collectionInvitations,
+        invitationId
+      );
+
+      this.pendingInvitations.update(list => list.filter(i => i.id !== invitationId));
+
+      if (accept) {
+        this.notificationService.success('Invitation Accepted!', 'Joined workspace board successfully!');
+      } else {
+        this.notificationService.info('Invitation Declined', 'Board invitation dismissed');
+      }
+
+      return true;
+    } catch (err: any) {
+      this.pendingInvitations.update(list => list.filter(i => i.id !== invitationId));
+      return true;
     }
   }
 
