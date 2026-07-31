@@ -1,0 +1,23 @@
+# Dependencies
+/node_modules
+
+# Angular Build & Cache
+/.angular
+/dist
+/.sass-cache
+/tmp
+/out-tsc
+
+# Environment & Credentials
+/.env.local
+/.env*.local
+
+# System Files
+.DS_Store
+Thumbs.db
+
+# IDE & Testing
+/.idea
+/.vscode
+/coverage
+/*.log
