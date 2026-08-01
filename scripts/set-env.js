@@ -32,10 +32,10 @@ envFileContent.split('\n').forEach(line => {
   }
 });
 
-const appwriteEndpoint = envVars['APPWRITE_ENDPOINT'] || 'https://cloud.appwrite.io/v1';
-const appwriteProjectId = envVars['APPWRITE_PROJECT_ID'] || 'YOUR_APPWRITE_PROJECT_ID';
-const appwriteDatabaseId = envVars['APPWRITE_DATABASE_ID'] || 'planzy_db';
-const appwriteStorageBucketId = envVars['APPWRITE_STORAGE_BUCKET_ID'] || 'task_attachments';
+const appwriteEndpoint = process.env['APPWRITE_ENDPOINT'] || envVars['APPWRITE_ENDPOINT'] || 'https://cloud.appwrite.io/v1';
+const appwriteProjectId = process.env['APPWRITE_PROJECT_ID'] || envVars['APPWRITE_PROJECT_ID'] || '6a6b908c00170e25d2d4';
+const appwriteDatabaseId = process.env['APPWRITE_DATABASE_ID'] || envVars['APPWRITE_DATABASE_ID'] || 'planzy_db';
+const appwriteStorageBucketId = process.env['APPWRITE_STORAGE_BUCKET_ID'] || envVars['APPWRITE_STORAGE_BUCKET_ID'] || '6a6dbf3f00123bfb3174';
 
 const angularJsonRaw = fs.readFileSync(angularJsonPath, 'utf8');
 const angularJson = JSON.parse(angularJsonRaw);
