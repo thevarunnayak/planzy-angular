@@ -23,9 +23,9 @@ export class AppwriteService {
 
   get storageBucketId(): string {
     try {
-      return process.env.APPWRITE_STORAGE_BUCKET_ID || 'task_attachments';
+      return process.env.APPWRITE_STORAGE_BUCKET_ID || '6a6dbf3f00123bfb3174';
     } catch {
-      return 'task_attachments';
+      return '6a6dbf3f00123bfb3174';
     }
   }
 
@@ -69,9 +69,9 @@ export class AppwriteService {
 
   get databaseId(): string {
     try {
-      return process.env.APPWRITE_DATABASE_ID || 'planzy_db';
+      return process.env.APPWRITE_DATABASE_ID || '6a6b912b0013f04cef1e';
     } catch {
-      return 'planzy_db';
+      return '6a6b912b0013f04cef1e';
     }
   }
 
