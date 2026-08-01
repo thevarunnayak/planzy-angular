@@ -1,13 +1,7 @@
 {
-  "functions": {
-    "api/appwrite/[...path].js": {
-      "memory": 128,
-      "maxDuration": 10
-    }
-  },
   "rewrites": [
     {
-      "source": "/((?!api/).*)",
+      "source": "/(.*)",
       "destination": "/index.html"
     }
   ]
