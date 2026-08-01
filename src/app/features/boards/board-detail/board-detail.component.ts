@@ -18,6 +18,8 @@ import { IconComponent } from '../../../shared/components/icon/icon.component';
 import { ButtonComponent } from '../../../shared/components/button/button.component';
 import { BadgeComponent } from '../../../shared/components/badge/badge.component';
 
+import { TaskCommentsModalComponent } from '../../../shared/components/task-comments-modal/task-comments-modal.component';
+
 @Component({
   selector: 'app-board-detail',
   standalone: true,
@@ -30,16 +32,16 @@ import { BadgeComponent } from '../../../shared/components/badge/badge.component
     ColumnDialogComponent,
     ConfirmDialogComponent,
     BoardMembersDialogComponent,
+    TaskCommentsModalComponent,
     CustomMultiSelectComponent,
     CustomSortSelectComponent,
     TooltipDirective,
     IconComponent,
-    ButtonComponent,
     BadgeComponent
   ],
   template: `
     @if (boardStore.activeBoard(); as board) {
-      <div class="board-view-container">
+      <div class="board-view-container" (click)="closeDropdowns()">
         <!-- Sticky Header Container (Header & Toolbar Stay Sticky on Scroll) -->
         <div class="sticky-header-container">
           <!-- Board Header Bar -->
@@ -59,38 +61,57 @@ import { BadgeComponent } from '../../../shared/components/badge/badge.component
               </div>
             </div>
 
+            <!-- Clean Header Actions with + Task Button & Three-Dot Menu -->
             <div class="header-actions">
-              <!-- Members & Access Control Button -->
-              <button class="jelly-btn secondary" (click)="membersModalOpen.set(true)" appTooltip="Board Members & Sharing">
-                <app-icon name="target" [size]="16"></app-icon>
-                <span>Members ({{ board.members?.length || 1 }})</span>
-              </button>
-
-              <button class="jelly-btn secondary" (click)="duplicateBoard(board.id)" appTooltip="Duplicate Board">
-                <app-icon name="copy" [size]="16"></app-icon>
-                <span>Duplicate</span>
-              </button>
-
-              @if (boardStore.canEditBoard()) {
-                <button class="jelly-btn secondary" (click)="openAddColumnModal()" appTooltip="Add Custom Column">
-                  <app-icon name="plus" [size]="16"></app-icon>
-                  <span>Column</span>
-                </button>
-              }
-
-              @if (boardStore.isOwner()) {
-                <button class="jelly-btn danger-btn" (click)="confirmDeleteBoardId.set(board.id)" appTooltip="Delete Board">
-                  <app-icon name="trash" [size]="16"></app-icon>
-                  <span>Delete</span>
-                </button>
-              }
-
+              <!-- Primary Prominent + Task Button -->
               @if (boardStore.canCreateTask()) {
                 <button class="jelly-btn" (click)="openCreateTaskModal(board.columns[0] ? board.columns[0].id : '')" appTooltip="Add New Task">
                   <app-icon name="plus" [size]="16"></app-icon>
                   <span>Task</span>
                 </button>
               }
+
+              <!-- Three-Dot Dropdown Menu Wrapper -->
+              <div class="three-dots-menu-wrap" (click)="$event.stopPropagation()">
+                <button
+                  class="icon-btn dots-menu-btn"
+                  (click)="boardMenuOpen.set(!boardMenuOpen())"
+                  appTooltip="Board Options & Settings"
+                >
+                  <app-icon name="dots" [size]="18"></app-icon>
+                </button>
+
+                @if (boardMenuOpen()) {
+                  <div class="menu-dropdown glass-card fade-in">
+                    @if (boardStore.canEditBoard()) {
+                      <button class="dropdown-item" (click)="membersModalOpen.set(true); boardMenuOpen.set(false)">
+                        <app-icon name="settings" [size]="14"></app-icon>
+                        <span>Board Settings</span>
+                      </button>
+                    }
+
+                    @if (boardStore.canEditBoard()) {
+                      <button class="dropdown-item" (click)="openAddColumnModal(); boardMenuOpen.set(false)">
+                        <app-icon name="plus" [size]="14"></app-icon>
+                        <span>Add Column</span>
+                      </button>
+                    }
+
+                    <button class="dropdown-item" (click)="duplicateBoard(board.id); boardMenuOpen.set(false)">
+                      <app-icon name="copy" [size]="14"></app-icon>
+                      <span>Duplicate Board</span>
+                    </button>
+
+                    @if (boardStore.isOwner()) {
+                      <div class="dropdown-divider"></div>
+                      <button class="dropdown-item danger" (click)="confirmDeleteBoardId.set(board.id); boardMenuOpen.set(false)">
+                        <app-icon name="trash" [size]="14"></app-icon>
+                        <span>Delete Board</span>
+                      </button>
+                    }
+                  </div>
+                }
+              </div>
             </div>
           </div>
 
@@ -151,9 +172,18 @@ import { BadgeComponent } from '../../../shared/components/badge/badge.component
               (cardDropped)="onCardDropped($event, col.id)"
               (selectCardRequested)="openEditTaskModal($event)"
               (addCardRequested)="openCreateTaskModal($event)"
+              (openCommentsRequested)="commentsTask.set($event)"
             ></app-kanban-column>
           }
         </div>
+
+        <!-- Task Comments Dedicated Modal -->
+        @if (commentsTask()) {
+          <app-task-comments-modal
+            [task]="commentsTask()!"
+            (closed)="commentsTask.set(null)"
+          ></app-task-comments-modal>
+        }
 
         <!-- Task Edit / Create Dialog Modal -->
         @if (dialogOpen()) {
@@ -273,6 +303,75 @@ import { BadgeComponent } from '../../../shared/components/badge/badge.component
       display: flex;
       align-items: center;
       gap: 10px;
+    }
+
+    .three-dots-menu-wrap {
+      position: relative;
+    }
+
+    .dots-menu-btn {
+      background: var(--surface);
+      border: 1.5px solid var(--border);
+      width: 40px;
+      height: 40px;
+      border-radius: var(--radius-full);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text);
+      cursor: pointer;
+      transition: all 0.2s ease;
+
+      &:hover {
+        border-color: var(--primary);
+        color: var(--primary);
+        transform: scale(1.05);
+      }
+    }
+
+    .menu-dropdown {
+      position: absolute;
+      top: calc(100% + 8px);
+      right: 0;
+      width: 180px;
+      padding: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      z-index: 2000;
+
+      .dropdown-item {
+        background: transparent;
+        border: none;
+        padding: 8px 12px;
+        border-radius: var(--radius-md);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.84rem;
+        font-weight: 800;
+        cursor: pointer;
+        color: var(--text);
+        transition: background 0.15s ease;
+
+        &:hover {
+          background: var(--background);
+          color: var(--primary);
+        }
+
+        &.danger {
+          color: var(--danger);
+          &:hover {
+            background: var(--danger-light);
+          }
+        }
+      }
+
+      .dropdown-divider {
+        height: 1px;
+        background: var(--border);
+        margin: 4px 0;
+      }
     }
 
     .toolbar {
@@ -453,8 +552,10 @@ export class BoardDetailComponent implements OnInit {
   dialogOpen = signal(false);
   columnModalOpen = signal(false);
   membersModalOpen = signal(false);
+  boardMenuOpen = signal(false);
   selectedTaskForEdit = signal<Task | null>(null);
   confirmDeleteBoardId = signal<string | null>(null);
+  commentsTask = signal<Task | null>(null);
 
   // Filters & Sorting Signals
   searchQuery = signal<string>('');
@@ -483,6 +584,10 @@ export class BoardDetailComponent implements OnInit {
         this.boardStore.selectBoard(boardId);
       }
     });
+  }
+
+  closeDropdowns(): void {
+    this.boardMenuOpen.set(false);
   }
 
   allColumnIds = () => {

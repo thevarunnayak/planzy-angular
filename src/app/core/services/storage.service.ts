@@ -6,13 +6,13 @@ import { Achievement } from '../models/achievement.model';
 import { MoodLog } from '../models/mood-pomodoro.model';
 
 const STORAGE_KEYS = {
-  BOARDS: 'planzy_boards_v2',
-  TASKS: 'planzy_tasks_v2',
-  SETTINGS: 'planzy_settings_v2',
-  ACHIEVEMENTS: 'planzy_achievements_v2',
-  MOODS: 'planzy_moods_v2',
-  XP: 'planzy_user_xp_v2',
-  VERSION: 'planzy_app_version'
+  BOARDS: 'planiq_boards_v2',
+  TASKS: 'planiq_tasks_v2',
+  SETTINGS: 'planiq_settings_v2',
+  ACHIEVEMENTS: 'planiq_achievements_v2',
+  MOODS: 'planiq_moods_v2',
+  XP: 'planiq_user_xp_v2',
+  VERSION: 'planiq_app_version'
 };
 
 const CURRENT_VERSION = '2.0.0';

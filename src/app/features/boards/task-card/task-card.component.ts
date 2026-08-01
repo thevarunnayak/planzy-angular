@@ -97,12 +97,18 @@ import { IconComponent } from '../../../shared/components/icon/icon.component';
               {{ (task.assignee.name || 'A').charAt(0).toUpperCase() }}
             </div>
           }
-          @if (task.comments && task.comments.length > 0) {
-            <span class="meta-item">
-              <app-icon name="comment" [size]="12"></app-icon>
-              {{ task.comments.length }}
-            </span>
-          }
+
+          <button
+            type="button"
+            class="comment-badge-btn"
+            [class.active]="task.comments && task.comments.length > 0"
+            (click)="onCommentBtnClick($event)"
+            [title]="(task.comments?.length || 0) + ' comments (Click to view & add)'"
+          >
+            <app-icon name="comment" [size]="12"></app-icon>
+            <span>{{ task.comments ? task.comments.length : 0 }}</span>
+          </button>
+
           @if (task.estimatedHours) {
             <span class="meta-item duration-pill" title="Estimated Duration">
               <app-icon name="clock" [size]="12"></app-icon>
@@ -160,48 +166,24 @@ import { IconComponent } from '../../../shared/components/icon/icon.component';
       background: var(--background);
       padding: 4px 8px;
       border-radius: var(--radius-sm);
-      border: 1px solid var(--border);
-      margin-bottom: 6px;
-      width: fit-content;
-
-      .origin-board-text {
-        color: var(--primary);
-      }
-
-      .origin-divider {
-        opacity: 0.5;
-      }
-
-      .origin-status-text {
-        text-transform: capitalize;
-        &.todo { color: #3A86FF; }
-        &.in_progress { color: #8ECAE6; }
-        &.done { color: #38B000; }
-      }
-    }
-
-    .card-main-content {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
+      margin-bottom: 8px;
     }
 
     .card-header {
       display: flex;
       align-items: center;
       justify-content: space-between;
+      margin-bottom: 10px;
     }
 
     .sticker-tag {
       color: var(--primary);
-      display: flex;
-      align-items: center;
     }
 
     .header-right {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 6px;
     }
 
     .fav-btn {
@@ -209,57 +191,58 @@ import { IconComponent } from '../../../shared/components/icon/icon.component';
       border: none;
       color: var(--text-muted);
       cursor: pointer;
+      padding: 2px;
       display: flex;
       align-items: center;
-      transition: transform 0.2s ease;
 
-      &:hover { transform: scale(1.15); }
-      &.active { color: #FFC107; }
+      &.active {
+        color: var(--gold);
+      }
     }
 
     .card-title {
       font-size: 0.95rem;
-      font-weight: 800;
+      font-weight: 900;
       color: var(--text);
-      line-height: 1.35;
+      margin-bottom: 6px;
+      line-height: 1.3;
     }
 
     .card-desc {
       font-size: 0.8rem;
       color: var(--text-muted);
-      line-height: 1.4;
+      margin-bottom: 10px;
       display: -webkit-box;
-      -webkit-line-clamp: 3;
+      -webkit-line-clamp: 2;
       -webkit-box-orient: vertical;
       overflow: hidden;
-      margin: 2px 0;
     }
 
     .card-labels {
       display: flex;
       flex-wrap: wrap;
-      gap: 6px;
-      margin-bottom: 8px; /* Spacing below label pills */
+      gap: 4px;
+      margin-bottom: 10px;
     }
 
     .label-chip {
-      background: var(--background);
-      border: 1.5px solid var(--border);
-      padding: 3px 10px;
+      font-size: 0.7rem;
+      font-weight: 800;
+      padding: 2px 8px;
       border-radius: var(--radius-full);
-      font-size: 0.72rem;
-      font-weight: 700;
-      color: var(--text);
+      background: var(--primary-light);
+      color: var(--primary);
     }
 
     .progress-section {
       display: flex;
-      flex-direction: column;
-      gap: 4px;
-      margin-bottom: 6px;
+      align-items: center;
+      gap: 8px;
+      margin-top: 6px;
     }
 
     .progress-bar-bg {
+      flex: 1;
       height: 6px;
       background: var(--background);
       border-radius: var(--radius-full);
@@ -320,10 +303,31 @@ import { IconComponent } from '../../../shared/components/icon/icon.component';
       box-shadow: 0 1px 3px rgba(0,0,0,0.15);
     }
 
+    .comment-badge-btn {
+      background: var(--background);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 3px 7px;
+      font-size: 0.74rem;
+      font-weight: 800;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+
+      &:hover, &.active {
+        background: var(--primary-light);
+        color: var(--primary);
+        border-color: var(--primary);
+      }
+    }
+
     .footer-meta {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 6px;
       margin-left: auto;
 
       .meta-item {
@@ -349,7 +353,9 @@ export class TaskCardComponent {
   @Input({ required: true }) task!: Task;
   @Input() boardName?: string;
   @Input() columnName?: string;
+
   @Output() selectCard = new EventEmitter<Task>();
+  @Output() openComments = new EventEmitter<Task>();
 
   private taskStore = inject(TaskStore);
 
@@ -364,6 +370,11 @@ export class TaskCardComponent {
 
   onClickCard(): void {
     this.selectCard.emit(this.task);
+  }
+
+  onCommentBtnClick(event: MouseEvent): void {
+    event.stopPropagation();
+    this.openComments.emit(this.task);
   }
 
   toggleFav(event: MouseEvent): void {

@@ -6,6 +6,7 @@ export interface SelectOption {
   value: string;
   label: string;
   icon?: string;
+  color?: string;
 }
 
 @Component({
@@ -22,34 +23,28 @@ export interface SelectOption {
       >
         <div class="selected-label">
           @if (selectedOption?.icon) {
-            <app-icon [name]="$any(selectedOption?.icon)" [size]="14"></app-icon>
+            <app-icon [name]="$any(selectedOption?.icon)" [size]="14" [style.color]="selectedOption?.color"></app-icon>
           }
           <span>{{ selectedOption?.label || placeholder }}</span>
         </div>
-        <div class="arrow-icon" [class.rotated]="isOpen">
-          ▼
-        </div>
+        <svg class="arrow" [class.rotated]="isOpen" viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none">
+          <polyline points="6 9 12 15 18 9"></polyline>
+        </svg>
       </button>
 
       @if (isOpen) {
-        <div
-          class="options-dropdown glass-card bounce-in"
-          [class.open-upward]="openUpward"
-        >
-          @for (opt of options; track opt.value) {
+        <div class="options-dropdown glass-card fade-in">
+          @for (option of options; track option.value) {
             <button
               type="button"
               class="option-item"
-              [class.selected]="opt.value === value"
-              (click)="selectOption(opt)"
+              [class.selected]="option.value === value"
+              (click)="selectOption(option.value)"
             >
-              @if (opt.icon) {
-                <app-icon [name]="$any(opt.icon)" [size]="14"></app-icon>
+              @if (option.icon) {
+                <app-icon [name]="$any(option.icon)" [size]="14" [style.color]="option.color"></app-icon>
               }
-              <span>{{ opt.label }}</span>
-              @if (opt.value === value) {
-                <app-icon name="check" [size]="14" class="check-mark"></app-icon>
-              }
+              <span>{{ option.label }}</span>
             </button>
           }
         </div>
@@ -64,17 +59,17 @@ export interface SelectOption {
 
     .select-trigger {
       width: 100%;
-      padding: 10px 14px;
-      border-radius: var(--radius-md);
-      border: 1.5px solid var(--border);
-      background: var(--background);
-      color: var(--text);
-      font-size: 0.88rem;
-      font-weight: 700;
-      cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: space-between;
+      padding: 10px 14px;
+      background: var(--background);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-md);
+      color: var(--text);
+      font-size: 0.9rem;
+      font-weight: 700;
+      cursor: pointer;
       transition: all 0.2s ease;
 
       &:hover, &.open {
@@ -87,19 +82,12 @@ export interface SelectOption {
       display: flex;
       align-items: center;
       gap: 8px;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
     }
 
-    .arrow-icon {
-      font-size: 0.65rem;
-      color: var(--text-muted);
+    .arrow {
       transition: transform 0.2s ease;
-
-      &.rotated {
-        transform: rotate(180deg);
-      }
+      color: var(--text-muted);
+      &.rotated { transform: rotate(180deg); }
     }
 
     .options-dropdown {
@@ -108,40 +96,34 @@ export interface SelectOption {
       left: 0;
       right: 0;
       z-index: 3000;
-      background: var(--surface);
-      border-radius: var(--radius-md);
       padding: 6px;
       display: flex;
       flex-direction: column;
-      gap: 2px;
-      max-height: 220px;
+      gap: 4px;
+      max-height: 200px;
       overflow-y: auto;
-      box-shadow: var(--shadow-lg);
-
-      &.open-upward {
-        top: auto;
-        bottom: calc(100% + 6px);
-      }
+      background: var(--surface);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-md);
+      box-shadow: var(--shadow-md);
     }
 
     .option-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
       padding: 8px 12px;
-      border-radius: var(--radius-sm);
-      border: none;
       background: transparent;
+      border: none;
+      border-radius: var(--radius-sm);
       color: var(--text);
       font-size: 0.85rem;
       font-weight: 700;
       cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      width: 100%;
-      text-align: left;
       transition: background 0.15s ease;
 
       &:hover {
-        background: var(--surface-hover);
+        background: var(--background);
         color: var(--primary);
       }
 
@@ -150,49 +132,34 @@ export interface SelectOption {
         color: var(--primary);
       }
     }
-
-    .check-mark {
-      margin-left: auto;
-      color: var(--primary);
-    }
   `]
 })
 export class CustomSelectComponent {
+  private elementRef = inject(ElementRef);
+
   @Input() options: SelectOption[] = [];
-  @Input() value: string = '';
-  @Input() placeholder: string = 'Select...';
+  @Input() value = '';
+  @Input() placeholder = 'Select option...';
 
   @Output() valueChange = new EventEmitter<string>();
 
   isOpen = false;
-  openUpward = false;
-  private elementRef = inject(ElementRef);
 
   get selectedOption(): SelectOption | undefined {
     return this.options.find(o => o.value === this.value);
   }
 
   toggleOpen(): void {
-    if (!this.isOpen) {
-      this.calculatePosition();
-    }
     this.isOpen = !this.isOpen;
   }
 
-  private calculatePosition(): void {
-    const rect = this.elementRef.nativeElement.getBoundingClientRect();
-    const spaceBelow = window.innerHeight - rect.bottom;
-    const popoverHeight = 240;
-    this.openUpward = spaceBelow < popoverHeight && rect.top > popoverHeight;
-  }
-
-  selectOption(opt: SelectOption): void {
-    this.valueChange.emit(opt.value);
+  selectOption(val: string): void {
+    this.valueChange.emit(val);
     this.isOpen = false;
   }
 
   @HostListener('document:click', ['$event'])
-  onClickOutside(event: MouseEvent): void {
+  onDocumentClick(event: MouseEvent): void {
     if (!this.elementRef.nativeElement.contains(event.target)) {
       this.isOpen = false;
     }

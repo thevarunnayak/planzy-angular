@@ -52,6 +52,7 @@ import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialo
             <app-task-card
               [task]="task"
               (selectCard)="selectCardRequested.emit($event)"
+              (openComments)="openCommentsRequested.emit($event)"
             ></app-task-card>
           </div>
         } @empty {
@@ -217,6 +218,7 @@ export class KanbanColumnComponent {
   @Output() cardDropped = new EventEmitter<CdkDragDrop<Task[]>>();
   @Output() selectCardRequested = new EventEmitter<Task>();
   @Output() addCardRequested = new EventEmitter<string>();
+  @Output() openCommentsRequested = new EventEmitter<Task>();
 
   private boardStore = inject(BoardStore);
 

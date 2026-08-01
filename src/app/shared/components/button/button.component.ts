@@ -12,6 +12,7 @@ export type ButtonSize = 'sm' | 'md' | 'lg';
   template: `
     <button
       [type]="type"
+      [attr.form]="form"
       [disabled]="disabled"
       class="app-button-el"
       [ngClass]="[
@@ -143,6 +144,7 @@ export class ButtonComponent {
   @Input() disabled: boolean = false;
   @Input() fullWidth: boolean = false;
   @Input() type: 'button' | 'submit' | 'reset' = 'button';
+  @Input() form?: string;
 
   @Output() btnClick = new EventEmitter<MouseEvent>();
 

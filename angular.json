@@ -3,7 +3,7 @@
   "version": 1,
   "newProjectRoot": "projects",
   "projects": {
-    "planzy-angular": {
+    "planiq-angular": {
       "projectType": "application",
       "schematics": {
         "@schematics/angular:component": {
@@ -17,7 +17,7 @@
         "build": {
           "builder": "@angular/build:application",
           "options": {
-            "outputPath": "dist/planzy-angular",
+            "outputPath": "dist/planiq-angular",
             "index": "src/index.html",
             "browser": "src/main.ts",
             "polyfills": [
@@ -72,10 +72,10 @@
           "builder": "@angular/build:dev-server",
           "configurations": {
             "production": {
-              "buildTarget": "planzy-angular:build:production"
+              "buildTarget": "planiq-angular:build:production"
             },
             "development": {
-              "buildTarget": "planzy-angular:build:development"
+              "buildTarget": "planiq-angular:build:development"
             }
           },
           "defaultConfiguration": "development"

@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed } from '@angular/core';
+import { Component, inject, signal, computed, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -11,6 +11,8 @@ import { CustomMultiSelectComponent, MultiSelectOption } from '../../../shared/c
 import { CustomSortSelectComponent, SortSelectOption, SortState } from '../../../shared/components/custom-sort-select/custom-sort-select.component';
 import { Task } from '../../../core/models/task.model';
 
+import { TaskCommentsModalComponent } from '../../../shared/components/task-comments-modal/task-comments-modal.component';
+
 @Component({
   selector: 'app-starred-tasks',
   standalone: true,
@@ -21,7 +23,8 @@ import { Task } from '../../../core/models/task.model';
     IconComponent,
     CustomSelectComponent,
     CustomMultiSelectComponent,
-    CustomSortSelectComponent
+    CustomSortSelectComponent,
+    TaskCommentsModalComponent
   ],
   template: `
     <div class="starred-page">
@@ -38,7 +41,7 @@ import { Task } from '../../../core/models/task.model';
             </div>
           </div>
           <div class="count-badge">
-            <span class="count-number">{{ favoriteTasks().length }}</span>
+            <span class="count-number">{{ processedStarredTasks().length }}</span>
             <span class="count-label">Starred</span>
           </div>
         </div>
@@ -98,6 +101,7 @@ import { Task } from '../../../core/models/task.model';
                   [boardName]="getBoardName(task.boardId)"
                   [columnName]="getColumnName(task.columnId)"
                   (selectCard)="onCardClick($event)"
+                  (openComments)="commentsTask.set($event)"
                 ></app-task-card>
               </div>
             }
@@ -112,6 +116,13 @@ import { Task } from '../../../core/models/task.model';
           </div>
         }
       </main>
+
+      @if (commentsTask()) {
+        <app-task-comments-modal
+          [task]="commentsTask()!"
+          (closed)="commentsTask.set(null)"
+        ></app-task-comments-modal>
+      }
     </div>
   `,
   styles: [`
@@ -270,8 +281,12 @@ export class StarredTasksComponent {
   selectedStates = signal<string[]>(['todo', 'in_progress', 'done']);
   selectedPriority = signal<string>('all');
   sortState = signal<SortState>({ sortBy: 'priority', direction: 'desc' });
+  commentsTask = signal<Task | null>(null);
 
-  favoriteTasks = this.taskStore.allFavoriteTasks;
+  userFavoriteTasks = computed(() => {
+    const validBoardIds = new Set(this.boardStore.boards().map(b => b.id));
+    return this.taskStore.tasks().filter((t: Task) => t.isFavorite && validBoardIds.has(t.boardId));
+  });
 
   priorityFilterOptions: SelectOption[] = [
     { value: 'all', label: 'All Priorities', icon: 'filter' },
@@ -303,32 +318,39 @@ export class StarredTasksComponent {
   });
 
   constructor() {
-    // Select all boards by default when boards load
-    const initialBoardIds = this.boardStore.boards().map(b => b.id);
-    this.selectedBoardIds.set(initialBoardIds);
+    effect(() => {
+      const boards = this.boardStore.boards();
+      if (boards.length > 0) {
+        const boardIds = boards.map(b => b.id);
+        const current = this.selectedBoardIds();
+        if (current.length === 0) {
+          this.selectedBoardIds.set(boardIds);
+        }
+      }
+    });
   }
 
   processedStarredTasks = computed(() => {
-    let list = this.favoriteTasks();
+    let list = this.userFavoriteTasks();
     const boardIds = this.selectedBoardIds();
     const states = this.selectedStates();
     const priority = this.selectedPriority();
     const sort = this.sortState();
 
     if (boardIds.length > 0) {
-      list = list.filter(t => boardIds.includes(t.boardId));
+      list = list.filter((t: Task) => boardIds.includes(t.boardId));
     } else {
       return [];
     }
 
     if (states.length > 0) {
-      list = list.filter(t => states.includes(t.columnId));
+      list = list.filter((t: Task) => states.includes(t.columnId));
     } else {
       return [];
     }
 
     if (priority !== 'all') {
-      list = list.filter(t => t.priority === priority);
+      list = list.filter((t: Task) => t.priority === priority);
     }
 
     if (!sort.sortBy || sort.direction === 'none') {

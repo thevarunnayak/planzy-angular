@@ -25,20 +25,20 @@ import { InvitationInboxDialogComponent } from '../invitation-inbox-dialog/invit
   ],
   template: `
     <header class="navbar">
-      <!-- Navbar Left Brand Logo (Clean, Prominent & Uncluttered) -->
+      <!-- Navbar Left Brand Logo -->
       <div class="navbar-left">
         <a routerLink="/" class="brand">
           <div class="brand-badge">
             <app-icon name="mascot" [size]="38"></app-icon>
           </div>
           <div class="brand-text">
-            <span class="brand-name">Planzy</span>
+            <span class="brand-name">PlanIQ</span>
             <span class="brand-tagline hide-on-mobile">Plan Happy. Do More.</span>
           </div>
         </a>
       </div>
 
-      <!-- Navbar Right Actions & User Profile Auth Trigger -->
+      <!-- Navbar Right Actions -->
       <div class="navbar-right">
         <!-- Command Palette Trigger -->
         <button class="cmd-palette-btn" (click)="openCmdPalette()" appTooltip="Search & Commands (Ctrl+K)">
@@ -47,21 +47,12 @@ import { InvitationInboxDialogComponent } from '../invitation-inbox-dialog/invit
           <kbd class="cmd-kbd hide-on-mobile">Ctrl+K</kbd>
         </button>
 
-        <!-- Theme Mode Switcher Button -->
-        <button class="icon-btn" (click)="themeStore.toggleDarkMode()" appTooltip="Toggle Dark/Light Mode">
-          @if (themeStore.darkMode()) {
-            <app-icon name="sun" [size]="18"></app-icon>
-          } @else {
-            <app-icon name="moon" [size]="18"></app-icon>
-          }
-        </button>
-
-        <!-- Pending Invitations Bell Button -->
+        <!-- Workspace Board Invitations Checking Button -->
         @if (appwriteService.isLoggedIn()) {
           <button
             class="icon-btn invite-bell-btn"
             (click)="invitationModalOpen.set(true)"
-            appTooltip="Workspace Board Invitations"
+            appTooltip="Check Workspace Board Invitations"
           >
             <app-icon name="sparkles" [size]="18"></app-icon>
             @if (appwriteService.pendingInvitations().length > 0) {
@@ -82,42 +73,76 @@ import { InvitationInboxDialogComponent } from '../invitation-inbox-dialog/invit
           <span>Task</span>
         </button>
 
-        <!-- Auth User Profile / Sign In Button -->
+        <!-- Standalone Clean Avatar Circle Button Trigger -->
         @if (appwriteService.isLoggedIn()) {
-          <div class="user-pill-wrap" (click)="userMenuOpen.set(!userMenuOpen())" appTooltip="Account Options">
+          <div class="user-avatar-btn" (click)="toggleAvatarMenu($event)" appTooltip="Account Options & Theme">
             <div class="user-avatar-badge">
-              {{ (appwriteService.currentUser()?.name || 'U').charAt(0).toUpperCase() }}
+              {{ (appwriteService.currentUser()?.name || appwriteService.currentUser()?.email || 'U').charAt(0).toUpperCase() }}
             </div>
-            <span class="user-email-name hide-on-mobile">{{ appwriteService.currentUser()?.name }}</span>
 
             @if (userMenuOpen()) {
               <div class="user-dropdown-menu glass-card fade-in" (click)="$event.stopPropagation()">
                 <div class="user-info-row">
-                  <strong>{{ appwriteService.currentUser()?.name }}</strong>
-                  <span class="user-email-sub">{{ appwriteService.currentUser()?.email }}</span>
+                  <div class="dropdown-avatar-circle">
+                    {{ (appwriteService.currentUser()?.name || 'U').charAt(0).toUpperCase() }}
+                  </div>
+                  <div class="dropdown-user-details">
+                    <strong class="user-name-title">{{ appwriteService.currentUser()?.name }}</strong>
+                    <span class="user-email-sub">{{ appwriteService.currentUser()?.email }}</span>
+                  </div>
                 </div>
+
+                <div class="dropdown-divider"></div>
+
+                <!-- Theme Mode Switcher inside Menu -->
+                <button class="dropdown-item" (click)="themeStore.toggleDarkMode()">
+                  <app-icon [name]="themeStore.darkMode() ? 'sun' : 'moon'" [size]="16"></app-icon>
+                  <span>Theme: {{ themeStore.darkMode() ? 'Dark' : 'Light' }}</span>
+                </button>
+
+                <!-- Workspace Invitations Option inside Menu -->
+                @if (appwriteService.pendingInvitations().length > 0) {
+                  <button class="dropdown-item" (click)="invitationModalOpen.set(true); userMenuOpen.set(false)">
+                    <app-icon name="sparkles" [size]="16"></app-icon>
+                    <span>Invitations ({{ appwriteService.pendingInvitations().length }})</span>
+                  </button>
+                }
+
+                <div class="dropdown-divider"></div>
+
+                <!-- Direct Sign Out Button -->
                 <button class="dropdown-item danger" (click)="appwriteService.logout(); userMenuOpen.set(false)">
-                  <app-icon name="x" [size]="14"></app-icon>
+                  <app-icon name="x" [size]="16"></app-icon>
                   <span>Sign Out</span>
                 </button>
               </div>
             }
           </div>
         } @else {
-          <button class="jelly-btn secondary navbar-btn auth-btn" (click)="appwriteService.openAuthModal()" appTooltip="Sign In / Sync Cloud">
-            <app-icon name="target" [size]="16"></app-icon>
-            <span>Sign In</span>
-          </button>
-        }
+          <!-- Guest Account Avatar Menu Button -->
+          <div class="user-avatar-btn guest" (click)="toggleAvatarMenu($event)" appTooltip="Account Options & Theme">
+            <div class="user-avatar-badge guest-badge">
+              <app-icon name="user" [size]="18"></app-icon>
+            </div>
 
-        <!-- Right-Side 3-Line Hamburger Menu Button for Small Devices -->
-        <button
-          class="icon-btn mobile-menu-toggle-btn"
-          (click)="layoutService.toggleMobileSidebar()"
-          appTooltip="Open Workspace Menu"
-        >
-          <app-icon name="menu" [size]="20"></app-icon>
-        </button>
+            @if (userMenuOpen()) {
+              <div class="user-dropdown-menu glass-card fade-in" (click)="$event.stopPropagation()">
+                <!-- Theme Mode Switcher inside Menu -->
+                <button class="dropdown-item" (click)="themeStore.toggleDarkMode()">
+                  <app-icon [name]="themeStore.darkMode() ? 'sun' : 'moon'" [size]="16"></app-icon>
+                  <span>Theme: {{ themeStore.darkMode() ? 'Dark' : 'Light' }}</span>
+                </button>
+
+                <div class="dropdown-divider"></div>
+
+                <button class="dropdown-item primary" (click)="appwriteService.openAuthModal(); userMenuOpen.set(false)">
+                  <app-icon name="target" [size]="16"></app-icon>
+                  <span>Sign In / Create Account</span>
+                </button>
+              </div>
+            }
+          </div>
+        }
       </div>
 
       <!-- Pending Invitations Inbox Modal -->
@@ -168,23 +193,15 @@ import { InvitationInboxDialogComponent } from '../invitation-inbox-dialog/invit
     .brand {
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 12px;
       text-decoration: none;
-      color: var(--text);
     }
 
     .brand-badge {
       display: flex;
       align-items: center;
       justify-content: center;
-      background: transparent;
-      padding: 0;
-      border-radius: 0;
-      transition: transform 0.25s var(--transition-spring);
-
-      &:hover {
-        transform: scale(1.1) rotate(5deg);
-      }
+      filter: drop-shadow(0 4px 10px rgba(58, 134, 255, 0.3));
     }
 
     .brand-text {
@@ -193,7 +210,7 @@ import { InvitationInboxDialogComponent } from '../invitation-inbox-dialog/invit
     }
 
     .brand-name {
-      font-size: 1.4rem;
+      font-size: 1.45rem;
       font-weight: 900;
       background: linear-gradient(135deg, var(--primary), var(--secondary));
       -webkit-background-clip: text;
@@ -211,7 +228,7 @@ import { InvitationInboxDialogComponent } from '../invitation-inbox-dialog/invit
     .navbar-right {
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 12px;
     }
 
     .cmd-palette-btn {
@@ -283,100 +300,151 @@ import { InvitationInboxDialogComponent } from '../invitation-inbox-dialog/invit
       box-shadow: 0 2px 4px rgba(0,0,0,0.2);
     }
 
-    .mobile-menu-toggle-btn {
-      display: none;
-      background: var(--primary-light);
-      color: var(--primary);
-      border-color: var(--primary-light);
-    }
-
     .navbar-btn {
       padding: 8px 14px;
       font-size: 0.85rem;
     }
 
-    .user-pill-wrap {
+    .user-avatar-btn {
+      position: relative;
+      cursor: pointer;
       display: flex;
       align-items: center;
-      gap: 8px;
-      background: var(--background);
-      border: 1.5px solid var(--border);
-      padding: 4px 12px 4px 6px;
-      border-radius: var(--radius-full);
-      cursor: pointer;
-      position: relative;
+      justify-content: center;
       user-select: none;
-
-      &:hover {
-        border-color: var(--primary);
-      }
     }
 
     .user-avatar-badge {
-      width: 30px;
-      height: 30px;
+      width: 40px;
+      height: 40px;
       border-radius: var(--radius-full);
       background: var(--primary);
       color: white;
       font-weight: 900;
-      font-size: 0.85rem;
+      font-size: 0.95rem;
       display: flex;
       align-items: center;
       justify-content: center;
-    }
+      box-shadow: var(--shadow-sm);
+      transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+      border: 2px solid transparent;
 
-    .user-email-name {
-      font-size: 0.82rem;
-      font-weight: 800;
-      color: var(--text);
+      &:hover {
+        transform: scale(1.06);
+        border-color: var(--primary);
+        box-shadow: 0 4px 12px rgba(58, 134, 255, 0.35);
+      }
+
+      &.guest-badge {
+        background: var(--background);
+        border: 1.5px solid var(--border);
+        color: var(--text-muted);
+
+        &:hover {
+          color: var(--primary);
+        }
+      }
     }
 
     .user-dropdown-menu {
       position: absolute;
-      top: calc(100% + 8px);
+      top: calc(100% + 10px);
       right: 0;
-      width: 200px;
+      width: 230px;
       padding: 12px;
       display: flex;
       flex-direction: column;
-      gap: 10px;
+      gap: 6px;
       z-index: 2000;
+      background: var(--surface);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-lg);
 
       .user-info-row {
         display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 4px 4px 10px 4px;
+      }
+
+      .dropdown-avatar-circle {
+        width: 34px;
+        height: 34px;
+        border-radius: var(--radius-full);
+        background: var(--primary);
+        color: white;
+        font-weight: 900;
+        font-size: 0.9rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+      }
+
+      .dropdown-user-details {
+        display: flex;
         flex-direction: column;
-        gap: 2px;
-        padding-bottom: 8px;
-        border-bottom: 1.5px solid var(--border);
-        strong { font-size: 0.88rem; color: var(--text); }
-        .user-email-sub { font-size: 0.72rem; color: var(--text-muted); }
+        gap: 1px;
+        overflow: hidden;
+
+        .user-name-title {
+          font-size: 0.88rem;
+          color: var(--text);
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .user-email-sub {
+          font-size: 0.72rem;
+          color: var(--text-muted);
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+      }
+
+      .dropdown-divider {
+        height: 1px;
+        background: var(--border);
+        margin: 4px 0;
       }
 
       .dropdown-item {
         background: transparent;
         border: none;
-        padding: 8px;
+        padding: 9px 12px;
         border-radius: var(--radius-md);
         display: flex;
         align-items: center;
-        gap: 8px;
-        font-size: 0.82rem;
+        gap: 10px;
+        font-size: 0.84rem;
         font-weight: 800;
         cursor: pointer;
         color: var(--text);
+        width: 100%;
+        transition: background 0.15s ease;
+
+        &:hover {
+          background: var(--background);
+        }
+
+        &.primary {
+          color: var(--primary);
+          background: var(--primary-light);
+        }
 
         &.danger {
           color: var(--danger);
-          &:hover { background: var(--danger-light); }
+          &:hover {
+            background: rgba(230, 57, 70, 0.1);
+          }
         }
       }
     }
 
-    /* Small Screen Responsive Styles (< 991px and < 768px) */
     @media (max-width: 991px) {
-      .mobile-menu-toggle-btn {
-        display: flex;
-      }
       .hide-on-mobile {
         display: none !important;
       }
@@ -404,6 +472,16 @@ export class NavbarComponent {
   noBoardsPromptOpen = signal(false);
   userMenuOpen = signal(false);
   invitationModalOpen = signal(false);
+
+  toggleAvatarMenu(event: MouseEvent): void {
+    event.stopPropagation();
+    if (window.innerWidth <= 991) {
+      this.userMenuOpen.set(false);
+      this.layoutService.toggleMobileSidebar();
+    } else {
+      this.userMenuOpen.set(!this.userMenuOpen());
+    }
+  }
 
   openCmdPalette(): void {
     this.shortcutsService.toggleCommandPalette(true);

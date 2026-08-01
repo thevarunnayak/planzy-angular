@@ -3,6 +3,7 @@ import { Board, BoardMember, Column, MemberRole } from '../models/board.model';
 import { StorageService } from '../services/storage.service';
 import { NotificationService } from '../services/notification.service';
 import { AppwriteService } from '../services/appwrite.service';
+import { TaskStore } from './task.store';
 import { ID, Query } from 'appwrite';
 
 const INITIAL_BOARDS: Board[] = [];
@@ -14,6 +15,7 @@ export class BoardStore {
   private storageService = inject(StorageService);
   private notificationService = inject(NotificationService);
   private appwriteService = inject(AppwriteService);
+  private taskStore = inject(TaskStore);
 
   boards = signal<Board[]>([]);
   activeBoardId = signal<string | null>(null);
@@ -35,14 +37,14 @@ export class BoardStore {
   currentUserRole = computed<MemberRole | null>(() => {
     const board = this.activeBoard();
     const user = this.appwriteService.currentUser();
-    if (!board || !user) return 'owner'; // Guest or single mode default owner
+    if (!board || !user) return 'owner';
 
     if (board.ownerId === user.id) return 'owner';
 
-    const mem = (board.members || []).find(m => m.userId === user.id);
+    const mem = (board.members || []).find(m => m.userId === user.id || (m.email && m.email.toLowerCase() === user.email?.toLowerCase()));
     if (mem) return mem.role;
 
-    return 'owner'; // Default fallback
+    return 'owner';
   });
 
   isOwner = computed(() => this.currentUserRole() === 'owner');
@@ -81,39 +83,67 @@ export class BoardStore {
       const res = await this.appwriteService.databases.listDocuments(
         this.appwriteService.databaseId,
         'boards',
-        [Query.equal('userId', userId)]
+        [Query.limit(100)]
       );
 
       if (res.documents.length > 0) {
-        const cloudBoards: Board[] = res.documents.map(doc => {
-          let members: BoardMember[] = [];
-          try {
-            if (doc['members']) members = JSON.parse(doc['members']);
-          } catch {}
+        const myEmail = this.appwriteService.currentUser()?.email?.toLowerCase() || '';
 
-          const isGroupVal = typeof doc['isGroup'] === 'boolean' ? doc['isGroup'] : (doc['type'] === 'group');
+        const cloudBoards: Board[] = res.documents
+          .map(doc => {
+            let members: BoardMember[] = [];
+            const rawMembers = doc['members'] || doc['members[]'];
+            if (Array.isArray(rawMembers)) {
+              rawMembers.forEach((m: any) => {
+                try {
+                  const parsed = typeof m === 'string' ? JSON.parse(m) : m;
+                  if (parsed && typeof parsed === 'object') {
+                    members.push(parsed);
+                  }
+                } catch {}
+              });
+            } else if (typeof rawMembers === 'string' && rawMembers.trim()) {
+              try {
+                const parsed = JSON.parse(rawMembers);
+                if (Array.isArray(parsed)) members = parsed;
+              } catch {}
+            }
 
-          return {
-            id: doc.$id,
-            name: doc['name'] || 'Untitled Board',
-            description: doc['description'] || '',
-            emoji: doc['emoji'] || 'folder',
-            isGroup: isGroupVal || false,
-            ownerId: doc['ownerId'] || userId,
-            members,
-            columns: [
-              { id: 'todo', name: 'To Do', color: '#3A86FF', order: 1 },
-              { id: 'in_progress', name: 'In Progress', color: '#8ECAE6', order: 2 },
-              { id: 'done', name: 'Done', color: '#38B000', order: 3 }
-            ],
-            createdAt: doc.$createdAt,
-            updatedAt: doc.$updatedAt
-          };
-        });
+            const isGroupVal = typeof doc['isGroup'] === 'boolean' ? doc['isGroup'] : false;
 
-        this.boards.set(cloudBoards);
-        if (!this.activeBoardId() && cloudBoards.length > 0) {
-          this.activeBoardId.set(cloudBoards[0].id);
+            return {
+              id: doc.$id,
+              name: doc['name'] || 'Untitled Board',
+              description: doc['description'] || '',
+              emoji: doc['emoji'] || 'folder',
+              isGroup: isGroupVal,
+              ownerId: doc['userId'] || userId,
+              members,
+              columns: [
+                { id: 'todo', name: 'To Do', color: '#3A86FF', order: 1 },
+                { id: 'in_progress', name: 'In Progress', color: '#8ECAE6', order: 2 },
+                { id: 'done', name: 'Done', color: '#38B000', order: 3 }
+              ],
+              createdAt: doc.$createdAt,
+              updatedAt: doc.$updatedAt
+            };
+          })
+          .filter(board => {
+            if (board.ownerId === userId) return true;
+            if (board.members && board.members.some(m => m.userId === userId || (m.email && m.email.toLowerCase() === myEmail))) {
+              return true;
+            }
+            return false;
+          });
+
+        // Preserve local shared group boards so accepting an invitation doesn't get wiped
+        const cloudBoardIds = new Set(cloudBoards.map(b => b.id));
+        const unsyncedSharedBoards = this.boards().filter(b => b.isGroup && !cloudBoardIds.has(b.id));
+        const mergedBoards = [...cloudBoards, ...unsyncedSharedBoards];
+
+        this.boards.set(mergedBoards);
+        if (!this.activeBoardId() && mergedBoards.length > 0) {
+          this.activeBoardId.set(mergedBoards[0].id);
         }
       }
     } catch (err: any) {
@@ -145,7 +175,7 @@ export class BoardStore {
     const initialMembers: BoardMember[] = user ? [
       {
         userId: user.id,
-        name: user.name,
+        name: user.name || user.email,
         email: user.email,
         role: 'owner',
         joinedAt: new Date().toISOString()
@@ -175,31 +205,56 @@ export class BoardStore {
 
     // Async sync to Appwrite Cloud if logged in
     if (user) {
+      const payload: any = {
+        name,
+        description,
+        emoji,
+        isGroup: Boolean(isGroup),
+        userId: user.id
+      };
+
+      if (initialMembers.length > 0) {
+        payload['members'] = [JSON.stringify(initialMembers[0])];
+      }
+
       this.appwriteService.databases.createDocument(
         this.appwriteService.databaseId,
         'boards',
         ID.unique(),
-        {
-          name,
-          description,
-          emoji,
-          isGroup,
-          ownerId: user.id,
-          members: JSON.stringify(initialMembers),
-          userId: user.id
-        }
+        payload
       ).then(doc => {
-        // Swap tempId with real Appwrite document ID
         this.boards.update(list => list.map(b => b.id === tempId ? { ...b, id: doc.$id } : b));
         if (this.activeBoardId() === tempId) {
           this.activeBoardId.set(doc.$id);
         }
-        this.notificationService.success('Cloud Synced!', `Board "${name}" saved to Appwrite.`);
+        this.notificationService.success('Cloud Synced!', `Board "${name}" saved to Appwrite Cloud.`);
       }).catch(err => {
-        this.notificationService.error(
-          'Appwrite Sync Notice',
-          'Board created locally. (If attribute isGroup is missing in Appwrite console, value is preserved locally).'
-        );
+        const fallbackPayload: any = {
+          name,
+          description,
+          emoji,
+          isGroup: Boolean(isGroup),
+          members: JSON.stringify(initialMembers),
+          userId: user.id
+        };
+
+        this.appwriteService.databases.createDocument(
+          this.appwriteService.databaseId,
+          'boards',
+          ID.unique(),
+          fallbackPayload
+        ).then(doc => {
+          this.boards.update(list => list.map(b => b.id === tempId ? { ...b, id: doc.$id } : b));
+          if (this.activeBoardId() === tempId) {
+            this.activeBoardId.set(doc.$id);
+          }
+          this.notificationService.success('Cloud Synced!', `Board "${name}" saved to Appwrite Cloud.`);
+        }).catch(err2 => {
+          this.notificationService.error(
+            'Appwrite Board Notice',
+            err2?.message || err?.message || 'Could not sync board attributes to Appwrite Cloud.'
+          );
+        });
       });
     } else {
       this.notificationService.info('Saved Locally', `Sign in to sync "${name}" to Appwrite Cloud.`);
@@ -215,6 +270,38 @@ export class BoardStore {
       }
       return b;
     }));
+
+    const user = this.appwriteService.currentUser();
+    if (user && boardId && !boardId.startsWith('board-')) {
+      const payload: any = {};
+      if (updates.name) payload.name = updates.name;
+      if (updates.description !== undefined) payload.description = updates.description;
+      if (updates.emoji) payload.emoji = updates.emoji;
+      if (updates.isGroup !== undefined) payload.isGroup = updates.isGroup;
+      if (updates.members) {
+        payload.members = updates.members.map(m => JSON.stringify(m));
+      }
+
+      if (Object.keys(payload).length > 0) {
+        this.appwriteService.databases.updateDocument(
+          this.appwriteService.databaseId,
+          'boards',
+          boardId,
+          payload
+        ).catch(() => {
+          if (updates.members) {
+            payload.members = JSON.stringify(updates.members);
+            this.appwriteService.databases.updateDocument(
+              this.appwriteService.databaseId,
+              'boards',
+              boardId,
+              payload
+            ).catch(() => {});
+          }
+        });
+      }
+    }
+
     this.notificationService.info('Board Updated', 'Workspace changes saved');
   }
 
@@ -234,32 +321,94 @@ export class BoardStore {
     this.updateBoard(active.id, { members: updatedMembers });
   }
 
-  acceptBoardInvitation(boardId: string, memberData: BoardMember): void {
-    let board = this.boards().find(b => b.id === boardId);
-    if (board) {
-      const existing = (board.members || []).filter(m => m.userId !== memberData.userId);
-      this.updateBoard(boardId, { members: [...existing, memberData] });
-      this.selectBoard(boardId);
-    } else {
-      // Create lightweight board representation until synced
-      const newGroupBoard: Board = {
+  async acceptBoardInvitation(boardId: string, memberData: BoardMember, boardNameFallback?: string): Promise<void> {
+    try {
+      const doc = await this.appwriteService.databases.getDocument(
+        this.appwriteService.databaseId,
+        'boards',
+        boardId
+      ).catch(() => null);
+
+      let currentMembers: BoardMember[] = [];
+      let realName = boardNameFallback || 'Shared Group Board';
+      let realDesc = 'Shared group workspace';
+      let realEmoji = '👥';
+      let realOwnerId = 'shared';
+      let createdAt = new Date().toISOString();
+      let updatedAt = new Date().toISOString();
+
+      if (doc) {
+        realName = doc['name'] || realName;
+        realDesc = doc['description'] || '';
+        realEmoji = doc['emoji'] || '👥';
+        realOwnerId = doc['userId'] || 'shared';
+        createdAt = doc.$createdAt || createdAt;
+        updatedAt = doc.$updatedAt || updatedAt;
+
+        const rawMembers = doc['members'] || doc['members[]'];
+        if (Array.isArray(rawMembers)) {
+          rawMembers.forEach((m: any) => {
+            try { currentMembers.push(typeof m === 'string' ? JSON.parse(m) : m); } catch {}
+          });
+        } else if (typeof rawMembers === 'string' && rawMembers.trim()) {
+          try { currentMembers = JSON.parse(rawMembers); } catch {}
+        }
+      }
+
+      const updatedMembers = [
+        ...currentMembers.filter(m => m.userId !== memberData.userId && m.email?.toLowerCase() !== memberData.email?.toLowerCase()),
+        memberData
+      ];
+
+      // Update Appwrite Cloud document if accessible
+      if (doc) {
+        await this.appwriteService.databases.updateDocument(
+          this.appwriteService.databaseId,
+          'boards',
+          boardId,
+          {
+            members: updatedMembers.map(m => JSON.stringify(m))
+          }
+        ).catch(() => {
+          this.appwriteService.databases.updateDocument(
+            this.appwriteService.databaseId,
+            'boards',
+            boardId,
+            { members: JSON.stringify(updatedMembers) }
+          ).catch(() => {});
+        });
+      }
+
+      const realBoard: Board = {
         id: boardId,
-        name: 'Shared Group Board',
-        description: 'Joined Group Workspace Board',
-        emoji: 'target',
+        name: realName,
+        description: realDesc,
+        emoji: realEmoji,
         isGroup: true,
-        ownerId: 'remote',
-        members: [memberData],
+        ownerId: realOwnerId,
+        members: updatedMembers,
         columns: [
           { id: 'todo', name: 'To Do', color: '#3A86FF', order: 1 },
           { id: 'in_progress', name: 'In Progress', color: '#8ECAE6', order: 2 },
           { id: 'done', name: 'Done', color: '#38B000', order: 3 }
         ],
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+        createdAt,
+        updatedAt
       };
-      this.boards.update(list => [...list, newGroupBoard]);
+
+      this.boards.update(list => {
+        const filtered = list.filter(b => b.id !== boardId);
+        return [...filtered, realBoard];
+      });
       this.selectBoard(boardId);
+
+      // Refresh tasks from Appwrite Cloud for newly joined group board
+      const currentUser = this.appwriteService.currentUser();
+      if (currentUser) {
+        this.taskStore.fetchAppwriteTasks(currentUser.id);
+      }
+    } catch (err) {
+      console.warn('Accept invitation board fetch error:', err);
     }
   }
 

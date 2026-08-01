@@ -20,6 +20,7 @@ export interface TaskComment {
   authorName: string;
   authorAvatar?: string;
   content: string;
+  text?: string;
   createdAt: string;
 }
 
@@ -74,6 +75,7 @@ export interface CreateTaskDto {
   estimatedHours?: number;
   labels?: string[];
   assignee?: TaskAssignee;
+  comments?: TaskComment[];
   sticker?: string;
 }
 

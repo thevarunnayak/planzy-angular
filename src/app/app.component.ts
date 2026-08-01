@@ -3,14 +3,13 @@ import { CommonModule } from '@angular/common';
 import { RouterOutlet } from '@angular/router';
 import { NavbarComponent } from './shared/components/navbar/navbar.component';
 import { SidebarComponent } from './shared/components/sidebar/sidebar.component';
-import { BottomNavComponent } from './shared/components/bottom-nav/bottom-nav.component';
-import { PoppiMascotComponent } from './shared/components/poppi-mascot/poppi-mascot.component';
-import { CommandPaletteComponent } from './shared/components/command-palette/command-palette.component';
-import { ToastComponent } from './shared/components/toast/toast.component';
 import { BoardDialogComponent } from './shared/components/board-dialog/board-dialog.component';
 import { TaskDialogComponent } from './features/boards/task-dialog/task-dialog.component';
+import { ToastComponent } from './shared/components/toast/toast.component';
+import { CommandPaletteComponent } from './shared/components/command-palette/command-palette.component';
 import { AuthDialogComponent } from './shared/components/auth-dialog/auth-dialog.component';
 import { SplashScreenComponent } from './shared/components/splash-screen/splash-screen.component';
+import { PoppiMascotComponent } from './shared/components/poppi-mascot/poppi-mascot.component';
 import { BoardStore } from './core/stores/board.store';
 import { TaskStore } from './core/stores/task.store';
 import { AppwriteService } from './core/services/appwrite.service';
@@ -23,24 +22,23 @@ import { AppwriteService } from './core/services/appwrite.service';
     RouterOutlet,
     NavbarComponent,
     SidebarComponent,
-    BottomNavComponent,
-    PoppiMascotComponent,
-    CommandPaletteComponent,
-    ToastComponent,
     BoardDialogComponent,
     TaskDialogComponent,
+    ToastComponent,
+    CommandPaletteComponent,
     AuthDialogComponent,
-    SplashScreenComponent
+    SplashScreenComponent,
+    PoppiMascotComponent
   ],
   template: `
     <div class="app-layout">
-      <!-- Aesthetic Splash Loading Screen -->
+      <!-- Animated Splash Screen -->
       <app-splash-screen></app-splash-screen>
 
-      <!-- Fixed Top Navbar -->
+      <!-- Main Navigation Header -->
       <app-navbar></app-navbar>
 
-      <!-- App Body -->
+      <!-- App Body Layout (Sidebar + Content Workspace) -->
       <div class="app-body">
         <app-sidebar></app-sidebar>
         <main class="app-content">
@@ -48,10 +46,7 @@ import { AppwriteService } from './core/services/appwrite.service';
         </main>
       </div>
 
-      <!-- Mobile Devices Bottom Navigation Bar -->
-      <app-bottom-nav></app-bottom-nav>
-
-      <!-- Global Floating Mascot, Command Palette & Toast Notifications -->
+      <!-- Floating Interactive AI Mascot -->
       <app-poppi-mascot></app-poppi-mascot>
       <app-command-palette></app-command-palette>
       <app-toast></app-toast>
@@ -110,7 +105,7 @@ export class AppComponent {
   taskStore = inject(TaskStore);
   appwriteService = inject(AppwriteService);
 
-  onBoardCreated(data: { name: string; description: string; emoji: string }): void {
-    this.boardStore.createBoard(data.name, data.description, data.emoji);
+  onBoardCreated(data: { name: string; description: string; emoji: string; isGroup: boolean }): void {
+    this.boardStore.createBoard(data.name, data.description, data.emoji, data.isGroup);
   }
 }

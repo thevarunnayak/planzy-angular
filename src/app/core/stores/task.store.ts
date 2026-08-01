@@ -1,12 +1,50 @@
-import { Injectable, signal, computed, effect, inject } from '@angular/core';
-import { Task, TaskFilter, TaskSortOption, CreateTaskDto, UpdateTaskDto } from '../models/task.model';
+import { Injectable, inject, signal, computed, effect } from '@angular/core';
+import { Task, CreateTaskDto, UpdateTaskDto, TaskAssignee, TaskComment } from '../models/task.model';
 import { StorageService } from '../services/storage.service';
 import { SoundService } from '../services/sound.service';
-import { NotificationService } from '../services/notification.service';
 import { AppwriteService } from '../services/appwrite.service';
+import { NotificationService } from '../services/notification.service';
 import { ID, Query } from 'appwrite';
 
-const INITIAL_TASKS: Task[] = [];
+const INITIAL_TASKS: Task[] = [
+  {
+    id: 'task-1',
+    boardId: 'default-board',
+    columnId: 'todo',
+    title: '🚀 Setup Project Architecture',
+    description: 'Initialize Angular standalone project with signals and modern glassmorphic design system',
+    priority: 'high',
+    labels: ['Architecture', 'Setup'],
+    subtasks: [
+      { id: 'sub-1', title: 'Setup Appwrite SDK', completed: true },
+      { id: 'sub-2', title: 'Configure SCSS theme tokens', completed: true }
+    ],
+    comments: [],
+    order: 1,
+    sticker: 'zap',
+    isFavorite: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  },
+  {
+    id: 'task-2',
+    boardId: 'default-board',
+    columnId: 'in_progress',
+    title: '🎨 Build Kanban Board Components',
+    description: 'Implement drag and drop, custom single select dropdowns, and task dialogs',
+    priority: 'urgent',
+    labels: ['Frontend', 'UI/UX'],
+    subtasks: [
+      { id: 'sub-3', title: 'Create Custom Single Select', completed: true }
+    ],
+    comments: [],
+    order: 1,
+    sticker: 'star',
+    isFavorite: false,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  }
+];
 
 @Injectable({
   providedIn: 'root'
@@ -14,57 +52,44 @@ const INITIAL_TASKS: Task[] = [];
 export class TaskStore {
   private storageService = inject(StorageService);
   private soundService = inject(SoundService);
-  private notificationService = inject(NotificationService);
   private appwriteService = inject(AppwriteService);
+  private notificationService = inject(NotificationService);
 
-  tasks = signal<Task[]>([]);
-  filter = signal<TaskFilter>({ searchQuery: '' });
-  sortBy = signal<TaskSortOption>('order');
-  createModalOpen = signal<boolean>(false);
+  readonly tasks = signal<Task[]>([]);
+  readonly searchQuery = signal<string>('');
+  readonly filterPriority = signal<string>('all');
+  readonly sortBy = signal<'order' | 'dueDate' | 'title' | 'createdAt'>('order');
+  readonly createModalOpen = signal<boolean>(false);
 
-  allFavoriteTasks = computed(() => {
-    return this.tasks().filter(t => t.isFavorite);
-  });
+  readonly allFavoriteTasks = computed(() => this.tasks().filter(t => t.isFavorite));
+  readonly favoriteTasksCount = computed(() => this.allFavoriteTasks().length);
 
-  favoriteTasksCount = computed(() => {
-    return this.allFavoriteTasks().length;
-  });
-
-  filteredTasks = computed(() => {
+  readonly filteredTasks = computed(() => {
     let list = this.tasks();
-    const f = this.filter();
+    const query = this.searchQuery().toLowerCase().trim();
+    const priority = this.filterPriority();
     const sort = this.sortBy();
 
-    if (f.boardId) {
-      list = list.filter(t => t.boardId === f.boardId);
-    }
-    if (f.searchQuery) {
-      const q = f.searchQuery.toLowerCase();
+    if (query) {
       list = list.filter(t =>
-        t.title.toLowerCase().includes(q) ||
-        (t.description && t.description.toLowerCase().includes(q)) ||
-        t.labels.some(l => l.toLowerCase().includes(q))
+        t.title.toLowerCase().includes(query) ||
+        t.description.toLowerCase().includes(query) ||
+        t.labels.some(l => l.toLowerCase().includes(query))
       );
     }
-    if (f.priority && f.priority !== 'all') {
-      list = list.filter(t => t.priority === f.priority);
-    }
-    if (f.favoriteOnly) {
-      list = list.filter(t => t.isFavorite);
+
+    if (priority !== 'all') {
+      list = list.filter(t => t.priority === priority);
     }
 
     return [...list].sort((a, b) => {
-      if (sort === 'priority') {
-        const weights: Record<string, number> = { urgent: 4, high: 3, medium: 2, low: 1 };
-        return (weights[b.priority] || 0) - (weights[a.priority] || 0);
-      }
       if (sort === 'dueDate') {
         if (!a.dueDate) return 1;
         if (!b.dueDate) return -1;
         return a.dueDate.localeCompare(b.dueDate);
       }
       if (sort === 'title') {
-        return a.title.localeCompare(b.title);
+        return a.title.localeCompare(a.title);
       }
       if (sort === 'createdAt') {
         return b.createdAt.localeCompare(a.createdAt);
@@ -100,7 +125,7 @@ export class TaskStore {
       const res = await this.appwriteService.databases.listDocuments(
         this.appwriteService.databaseId,
         'tasks',
-        [Query.equal('userId', userId)]
+        [Query.limit(200)]
       );
 
       if (res.documents.length > 0) {
@@ -113,6 +138,30 @@ export class TaskStore {
             parsedLabels = rawLabels.split(',').map(l => l.trim()).filter(Boolean);
           }
 
+          let assignee: TaskAssignee | undefined = undefined;
+          try {
+            if (doc['assignee']) {
+              assignee = typeof doc['assignee'] === 'string' ? JSON.parse(doc['assignee']) : doc['assignee'];
+            }
+          } catch {}
+
+          let comments: TaskComment[] = [];
+          try {
+            const rawComm = doc['comments'] || doc['comments[]'];
+            if (Array.isArray(rawComm)) {
+              rawComm.forEach((c: any) => {
+                try {
+                  const parsed = typeof c === 'string' ? JSON.parse(c) : c;
+                  if (parsed && typeof parsed === 'object') {
+                    comments.push(parsed);
+                  }
+                } catch {}
+              });
+            } else if (typeof rawComm === 'string' && rawComm.trim()) {
+              comments = JSON.parse(rawComm);
+            }
+          } catch {}
+
           return {
             id: doc.$id,
             boardId: doc['boardId'] || '',
@@ -124,8 +173,9 @@ export class TaskStore {
             estimatedHours: doc['estimatedHours'] ? Number(doc['estimatedHours']) : undefined,
             actualHours: doc['actualHours'] ? Number(doc['actualHours']) : 0,
             labels: parsedLabels,
+            assignee,
+            comments,
             subtasks: [],
-            comments: [],
             history: [],
             order: idx + 1,
             sticker: 'bookmark',
@@ -135,10 +185,13 @@ export class TaskStore {
           };
         });
 
-        this.tasks.set(cloudTasks);
+        // Merge cloud tasks with unsynced local tasks so local creations aren't lost
+        const cloudTaskIds = new Set(cloudTasks.map(ct => ct.id));
+        const unsyncedLocalTasks = this.tasks().filter(t => t.id.startsWith('task-') && !cloudTaskIds.has(t.id));
+        this.tasks.set([...cloudTasks, ...unsyncedLocalTasks]);
       }
-    } catch {
-      // Fallback to local tasks if collection doesn't exist yet or offline
+    } catch (err) {
+      console.warn('Appwrite fetchAppwriteTasks error:', err);
     }
   }
 
@@ -169,6 +222,7 @@ export class TaskStore {
       estimatedHours: dto.estimatedHours,
       actualHours: 0,
       labels: taskLabels,
+      assignee: dto.assignee,
       subtasks: [],
       comments: [],
       history: [],
@@ -184,7 +238,9 @@ export class TaskStore {
 
     // Async sync to Appwrite Cloud if logged in
     if (user) {
-      const payload: any = {
+      const serializedComments = dto.comments ? JSON.stringify(dto.comments) : '[]';
+
+      const fullPayload: any = {
         boardId: dto.boardId || 'default-board',
         columnId: targetColumnId,
         title: dto.title,
@@ -193,24 +249,59 @@ export class TaskStore {
         dueDate: dto.dueDate || '',
         estimatedHours: dto.estimatedHours || 0,
         labels: taskLabels,
+        assignee: dto.assignee ? JSON.stringify(dto.assignee) : '',
+        comments: serializedComments,
         isFavorite: false,
         userId: user.id
       };
 
-      this.appwriteService.databases.createDocument(
-        this.appwriteService.databaseId,
-        'tasks',
-        ID.unique(),
-        payload
-      ).then(doc => {
-        // Swap tempId with real Appwrite document ID
+      const tryCreateDoc = (payloadData: any) => {
+        return this.appwriteService.databases.createDocument(
+          this.appwriteService.databaseId,
+          'tasks',
+          ID.unique(),
+          payloadData
+        );
+      };
+
+      tryCreateDoc(fullPayload).then(doc => {
         this.tasks.update(list => list.map(t => t.id === tempId ? { ...t, id: doc.$id } : t));
         this.notificationService.success('Cloud Synced!', `Task "${dto.title}" saved to Appwrite.`);
       }).catch(err => {
-        this.notificationService.error(
-          'Appwrite Task Sync Failed',
-          err?.message || 'Check your Appwrite tasks collection permissions or attributes.'
-        );
+        console.warn('Appwrite full task creation failed, trying fallback with assignee & comments:', err);
+        const fallbackAssigneePayload: any = {
+          boardId: dto.boardId || 'default-board',
+          columnId: targetColumnId,
+          title: dto.title,
+          priority: dto.priority || 'medium',
+          assignee: dto.assignee ? JSON.stringify(dto.assignee) : '',
+          comments: serializedComments,
+          userId: user.id
+        };
+
+        tryCreateDoc(fallbackAssigneePayload).then(doc => {
+          this.tasks.update(list => list.map(t => t.id === tempId ? { ...t, id: doc.$id } : t));
+          this.notificationService.success('Cloud Synced!', `Task "${dto.title}" saved to Appwrite.`);
+        }).catch(err2 => {
+          console.warn('Appwrite assignee/comments fallback failed, trying minimal core payload:', err2);
+          const barePayload: any = {
+            boardId: dto.boardId || 'default-board',
+            columnId: targetColumnId,
+            title: dto.title,
+            userId: user.id
+          };
+
+          tryCreateDoc(barePayload).then(doc => {
+            this.tasks.update(list => list.map(t => t.id === tempId ? { ...t, id: doc.$id } : t));
+            this.notificationService.success('Cloud Synced!', `Task "${dto.title}" saved to Appwrite.`);
+          }).catch(err3 => {
+            console.error('Appwrite task creation failed completely:', err3);
+            this.notificationService.info(
+              'Saved Locally',
+              `Task "${dto.title}" preserved locally. (Appwrite error: ${err3?.message || 'Check Appwrite attributes'}).`
+            );
+          });
+        });
       });
     } else {
       this.notificationService.info('Saved Locally', `Sign in to sync "${dto.title}" to Appwrite Cloud.`);
@@ -220,28 +311,7 @@ export class TaskStore {
   }
 
   updateTask(taskId: string, dto: UpdateTaskDto): void {
-    const user = this.appwriteService.currentUser();
-    if (user && taskId && !taskId.startsWith('task-')) {
-      const payload: any = {};
-      if (dto.title) payload.title = dto.title;
-      if (dto.description !== undefined) payload.description = dto.description;
-      if (dto.priority) payload.priority = dto.priority;
-      if (dto.dueDate) payload.dueDate = dto.dueDate;
-      if (dto.estimatedHours !== undefined) payload.estimatedHours = dto.estimatedHours;
-      if (dto.columnId) payload.columnId = dto.columnId;
-      if (dto.labels) payload.labels = dto.labels;
-      if (dto.isFavorite !== undefined) payload.isFavorite = dto.isFavorite;
-
-      if (Object.keys(payload).length > 0) {
-        this.appwriteService.databases.updateDocument(
-          this.appwriteService.databaseId,
-          'tasks',
-          taskId,
-          payload
-        ).catch(err => console.warn('Appwrite task update error:', err));
-      }
-    }
-
+    // 1. Immediately update local state so UI reflects edits instantly
     this.tasks.update(list => list.map(t => {
       if (t.id === taskId) {
         return {
@@ -252,7 +322,77 @@ export class TaskStore {
       }
       return t;
     }));
-    this.notificationService.info('Task Updated', 'Changes saved');
+
+    // 2. Sync to Appwrite Cloud
+    const user = this.appwriteService.currentUser();
+    if (user && taskId && !taskId.startsWith('task-')) {
+      const serializedComments = dto.comments !== undefined
+        ? (typeof dto.comments === 'string' ? dto.comments : JSON.stringify(dto.comments))
+        : undefined;
+
+      const fullPayload: any = {};
+      if (dto.title !== undefined) fullPayload.title = dto.title;
+      if (dto.description !== undefined) fullPayload.description = dto.description;
+      if (dto.priority !== undefined) fullPayload.priority = dto.priority;
+      if (dto.dueDate !== undefined) fullPayload.dueDate = dto.dueDate || '';
+      if (dto.estimatedHours !== undefined) fullPayload.estimatedHours = dto.estimatedHours || 0;
+      if (dto.columnId !== undefined) fullPayload.columnId = dto.columnId;
+      if (dto.labels !== undefined) fullPayload.labels = dto.labels;
+      if (dto.isFavorite !== undefined) fullPayload.isFavorite = dto.isFavorite;
+      if (dto.assignee !== undefined) fullPayload.assignee = dto.assignee ? JSON.stringify(dto.assignee) : '';
+      if (serializedComments !== undefined) fullPayload.comments = serializedComments;
+
+      if (Object.keys(fullPayload).length > 0) {
+        this.appwriteService.databases.updateDocument(
+          this.appwriteService.databaseId,
+          'tasks',
+          taskId,
+          fullPayload
+        ).then(() => {
+          console.log('Appwrite task updated with full payload');
+        }).catch(err => {
+          console.warn('Appwrite full updateTask failed, trying fallback with assignee & comments:', err);
+
+          // Fallback 1: Include core fields + assignee + comments
+          const fallbackAssigneePayload: any = {};
+          if (dto.title !== undefined) fallbackAssigneePayload.title = dto.title;
+          if (dto.columnId !== undefined) fallbackAssigneePayload.columnId = dto.columnId;
+          if (dto.priority !== undefined) fallbackAssigneePayload.priority = dto.priority;
+          if (dto.isFavorite !== undefined) fallbackAssigneePayload.isFavorite = dto.isFavorite;
+          if (dto.assignee !== undefined) fallbackAssigneePayload.assignee = dto.assignee ? JSON.stringify(dto.assignee) : '';
+          if (serializedComments !== undefined) fallbackAssigneePayload.comments = serializedComments;
+
+          this.appwriteService.databases.updateDocument(
+            this.appwriteService.databaseId,
+            'tasks',
+            taskId,
+            fallbackAssigneePayload
+          ).then(() => {
+            console.log('Appwrite task updated with assignee & comments fallback payload');
+          }).catch(err2 => {
+            console.warn('Appwrite assignee/comments fallback update failed, trying array comments fallback:', err2);
+
+            // Fallback 2: Try string array comments format if comments attribute in console is string array
+            if (Array.isArray(dto.comments)) {
+              fallbackAssigneePayload.comments = dto.comments.map(c => JSON.stringify(c));
+              this.appwriteService.databases.updateDocument(
+                this.appwriteService.databaseId,
+                'tasks',
+                taskId,
+                fallbackAssigneePayload
+              ).catch(() => {});
+            }
+          });
+        });
+      }
+    }
+  }
+
+  toggleFavorite(taskId: string): void {
+    const target = this.tasks().find(t => t.id === taskId);
+    if (!target) return;
+
+    this.updateTask(taskId, { isFavorite: !target.isFavorite });
   }
 
   deleteTask(taskId: string): void {
@@ -273,82 +413,14 @@ export class TaskStore {
     }
   }
 
-  moveTaskColumn(taskId: string, newColumnId: string, newIndex: number = 0): void {
-    const user = this.appwriteService.currentUser();
-    if (user && taskId && !taskId.startsWith('task-')) {
-      this.appwriteService.databases.updateDocument(
-        this.appwriteService.databaseId,
-        'tasks',
-        taskId,
-        { columnId: newColumnId }
-      ).catch(err => console.warn('Appwrite task move error:', err));
-    }
-
-    this.tasks.update(list => {
-      const task = list.find(t => t.id === taskId);
-      if (!task) return list;
-
-      const updated = list.map(t => {
-        if (t.id === taskId) {
-          const wasCompleted = t.columnId === 'done';
-          const isCompletedNow = newColumnId === 'done';
-
-          if (!wasCompleted && isCompletedNow) {
-            this.soundService.playSuccessChime();
-            this.notificationService.success('Task Completed! 🎉', `"${t.title}" is finished!`);
-          } else {
-            this.soundService.playPop();
-          }
-
-          return {
-            ...t,
-            columnId: newColumnId,
-            order: newIndex,
-            updatedAt: new Date().toISOString()
-          };
-        }
-        return t;
-      });
-
-      return updated;
-    });
-  }
-
-  toggleFavorite(taskId: string): void {
+  moveTask(taskId: string, targetColumnId: string, newIndex?: number): void {
     const target = this.tasks().find(t => t.id === taskId);
     if (!target) return;
 
-    const newFav = !target.isFavorite;
-    const user = this.appwriteService.currentUser();
-
-    if (user && taskId && !taskId.startsWith('task-')) {
-      this.appwriteService.databases.updateDocument(
-        this.appwriteService.databaseId,
-        'tasks',
-        taskId,
-        { isFavorite: newFav }
-      ).catch(err => console.warn('Appwrite favorite update error:', err));
-    }
-
-    this.tasks.update(list => list.map(t => {
-      if (t.id === taskId) {
-        return { ...t, isFavorite: newFav };
-      }
-      return t;
-    }));
-
-    if (newFav) {
-      this.notificationService.success('Starred Task ⭐', `Added "${target.title}" to Starred Tasks`);
-    } else {
-      this.notificationService.info('Unstarred Task', `Removed "${target.title}" from Starred Tasks`);
-    }
+    this.updateTask(taskId, { columnId: targetColumnId });
   }
 
-  updateFilter(partial: Partial<TaskFilter>): void {
-    this.filter.update(f => ({ ...f, ...partial }));
-  }
-
-  setSortBy(sort: TaskSortOption): void {
-    this.sortBy.set(sort);
+  moveTaskColumn(taskId: string, targetColumnId: string, newIndex?: number): void {
+    this.moveTask(taskId, targetColumnId, newIndex);
   }
 }

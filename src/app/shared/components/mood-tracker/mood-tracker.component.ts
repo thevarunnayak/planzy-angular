@@ -101,12 +101,12 @@ export class MoodTrackerComponent {
   ];
 
   constructor() {
-    const saved = localStorage.getItem('planzy_user_mood');
+    const saved = localStorage.getItem('planiq_user_mood');
     if (saved) this.selectedMoodId = saved;
   }
 
   selectMood(id: string): void {
     this.selectedMoodId = id;
-    localStorage.setItem('planzy_user_mood', id);
+    localStorage.setItem('planiq_user_mood', id);
   }
 }

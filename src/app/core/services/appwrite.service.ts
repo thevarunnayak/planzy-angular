@@ -1,12 +1,13 @@
 import { Injectable, signal, computed, inject } from '@angular/core';
-import { Client, Account, Databases, ID, Query } from 'appwrite';
+import { Client, Account, Databases, ID, Query, Models } from 'appwrite';
 import { NotificationService } from './notification.service';
 import { BoardInvitation, InvitationRole } from '../models/invitation.model';
 
-export interface UserProfile {
+export interface User {
   id: string;
-  email: string;
   name: string;
+  email: string;
+  createdAt: string;
 }
 
 @Injectable({
@@ -15,85 +16,53 @@ export interface UserProfile {
 export class AppwriteService {
   private notificationService = inject(NotificationService);
 
-  readonly client = new Client();
-  readonly account: Account;
-  readonly databases: Databases;
+  client = new Client();
+  account = new Account(this.client);
+  databases = new Databases(this.client);
 
-  currentUser = signal<UserProfile | null>(null);
-  isLoggedIn = computed(() => this.currentUser() !== null);
+  currentUser = signal<User | null>(null);
   authModalOpen = signal<boolean>(false);
+
+  // Computed login status signal
+  isLoggedIn = computed<boolean>(() => !!this.currentUser());
+
+  // In-app pending invitations signal & 24h expiration threshold
   pendingInvitations = signal<BoardInvitation[]>([]);
-
-  readonly collectionInvitations = 'board_invitations';
-  readonly collectionBoards = 'boards';
-
-  // Expiration duration: 24 Hours in milliseconds
   readonly invitationExpiryMs = 24 * 60 * 60 * 1000;
 
-  get endpoint(): string {
+  private readonly collectionInvitations = 'board_invitations';
+
+  constructor() {
+    this.initAppwrite();
+    this.checkSession();
+  }
+
+  private initAppwrite(): void {
     try {
-      return process.env.APPWRITE_ENDPOINT || 'https://sgp.cloud.appwrite.io/v1';
+      const endpoint = process.env.APPWRITE_ENDPOINT || 'https://sgp.cloud.appwrite.io/v1';
+      const projectId = process.env.APPWRITE_PROJECT_ID || '6a6b908c00170e25d2d4';
+
+      this.client
+        .setEndpoint(endpoint)
+        .setProject(projectId);
     } catch {
-      return 'https://sgp.cloud.appwrite.io/v1';
+      // Quiet initialization fallback
     }
   }
 
   get projectId(): string {
     try {
-      return process.env.APPWRITE_PROJECT_ID || 'YOUR_APPWRITE_PROJECT_ID';
+      return process.env.APPWRITE_PROJECT_ID || '6a6b908c00170e25d2d4';
     } catch {
-      return 'YOUR_APPWRITE_PROJECT_ID';
+      return '6a6b908c00170e25d2d4';
     }
   }
 
   get databaseId(): string {
     try {
-      return process.env.APPWRITE_DATABASE_ID || 'planzy_db';
+      return process.env.APPWRITE_DATABASE_ID || 'planiq_db';
     } catch {
-      return 'planzy_db';
-    }
-  }
-
-  constructor() {
-    this.client
-      .setEndpoint(this.endpoint)
-      .setProject(this.projectId);
-
-    this.account = new Account(this.client);
-    this.databases = new Databases(this.client);
-    this.checkSession();
-  }
-
-  private hasAppwriteSession(): boolean {
-    if (typeof window === 'undefined') return false;
-    const hasCookie = document.cookie.includes('a_session');
-    const hasFallback = !!localStorage.getItem('cookieFallback') && localStorage.getItem('cookieFallback') !== '[]';
-    return hasCookie || hasFallback;
-  }
-
-  async checkSession(): Promise<void> {
-    if (!this.projectId || this.projectId.includes('YOUR_APPWRITE_PROJECT_ID')) {
-      return;
-    }
-
-    if (!this.hasAppwriteSession()) {
-      this.currentUser.set(null);
-      this.pendingInvitations.set([]);
-      return;
-    }
-
-    try {
-      const user = await this.account.get();
-      this.currentUser.set({
-        id: user.$id,
-        email: user.email,
-        name: user.name || user.email.split('@')[0]
-      });
-
-      this.fetchPendingInvitations();
-    } catch {
-      this.currentUser.set(null);
-      this.pendingInvitations.set([]);
+      return 'planiq_db';
     }
   }
 
@@ -105,62 +74,49 @@ export class AppwriteService {
     this.authModalOpen.set(false);
   }
 
-  async login(email: string, pass: string): Promise<boolean> {
-    if (!this.projectId || this.projectId.includes('YOUR_APPWRITE_PROJECT_ID')) {
-      this.notificationService.error(
-        'Appwrite Project ID Required',
-        'Please replace YOUR_APPWRITE_PROJECT_ID in .env.local with your real Project ID from cloud.appwrite.io'
-      );
-      return false;
-    }
-
+  async checkSession(): Promise<void> {
     try {
-      if (this.hasAppwriteSession()) {
-        await this.account.deleteSession('current');
+      const session = await this.account.get();
+      if (session) {
+        this.currentUser.set({
+          id: session.$id,
+          name: session.name || session.email.split('@')[0],
+          email: session.email,
+          createdAt: session.$createdAt
+        });
+        this.fetchPendingInvitations();
       }
     } catch {
-      // Ignore if no active session
+      this.currentUser.set(null);
     }
+  }
 
+  async signUp(email: string, pass: string, name: string): Promise<boolean> {
     try {
-      await this.account.createEmailPasswordSession(email, pass);
-      await this.checkSession();
-      this.notificationService.success('Welcome Back!', `Signed in as ${email}`);
-      this.closeAuthModal();
+      await this.account.create(ID.unique(), email, pass, name);
+      await this.login(email, pass);
+      this.notificationService.success('Welcome to PlanIQ!', `Account created for ${name}`);
       return true;
     } catch (err: any) {
-      this.handleAppwriteError(err, 'Sign In Failed');
+      this.handleAppwriteError(err, 'Sign Up Failed');
       return false;
     }
   }
 
-  async signup(email: string, pass: string, name?: string): Promise<boolean> {
-    if (!this.projectId || this.projectId.includes('YOUR_APPWRITE_PROJECT_ID')) {
-      this.notificationService.error(
-        'Appwrite Project ID Required',
-        'Please replace YOUR_APPWRITE_PROJECT_ID in .env.local with your real Project ID from cloud.appwrite.io'
-      );
-      return false;
-    }
+  // Alias for backward compatibility
+  async signup(email: string, pass: string, name: string): Promise<boolean> {
+    return this.signUp(email, pass, name);
+  }
 
+  async login(email: string, pass: string): Promise<boolean> {
     try {
-      if (this.hasAppwriteSession()) {
-        await this.account.deleteSession('current');
-      }
-    } catch {
-      // Ignore if no active session
-    }
-
-    try {
-      await this.account.create(
-        ID.unique(),
-        email,
-        pass,
-        name || email.split('@')[0]
-      );
-      return await this.login(email, pass);
+      await this.account.createEmailPasswordSession(email, pass);
+      await this.checkSession();
+      this.closeAuthModal();
+      this.notificationService.success('Logged In!', 'Your workspace is synced with Appwrite Cloud.');
+      return true;
     } catch (err: any) {
-      this.handleAppwriteError(err, 'Sign Up Failed');
+      this.handleAppwriteError(err, 'Login Failed');
       return false;
     }
   }
@@ -169,7 +125,7 @@ export class AppwriteService {
     try {
       await this.account.deleteSession('current');
     } catch {
-      // Ignore session delete errors
+      // Ignore session delete errors on local
     } finally {
       this.currentUser.set(null);
       this.pendingInvitations.set([]);
@@ -177,7 +133,7 @@ export class AppwriteService {
     }
   }
 
-  /* --- INVITATION METHODS WITH AUTOMATIC PURGE & DELETION --- */
+  /* --- INVITATION METHODS WITH REAL ERROR REPORTING & AUTOMATIC PURGE --- */
 
   async sendBoardInvitation(
     boardId: string,
@@ -186,30 +142,37 @@ export class AppwriteService {
     role: InvitationRole = 'member'
   ): Promise<boolean> {
     const user = this.currentUser();
-    if (!user) return false;
+    if (!user) {
+      this.notificationService.error('Sign In Required', 'Please sign in to send workspace invitations.');
+      return false;
+    }
 
     const normalizedEmail = inviteeEmail.toLowerCase().trim();
 
     try {
       // 1. Delete any existing pending invitations for this same email + board to prevent duplicates
-      const existing = await this.databases.listDocuments(
-        this.databaseId,
-        this.collectionInvitations,
-        [
-          Query.equal('boardId', boardId),
-          Query.equal('inviteeEmail', normalizedEmail)
-        ]
-      );
-
-      for (const doc of existing.documents) {
-        await this.databases.deleteDocument(
+      try {
+        const existing = await this.databases.listDocuments(
           this.databaseId,
           this.collectionInvitations,
-          doc.$id
-        ).catch(() => {});
+          [
+            Query.equal('boardId', boardId),
+            Query.equal('inviteeEmail', normalizedEmail)
+          ]
+        );
+
+        for (const doc of existing.documents) {
+          await this.databases.deleteDocument(
+            this.databaseId,
+            this.collectionInvitations,
+            doc.$id
+          ).catch(() => {});
+        }
+      } catch {
+        // If collection doesn't exist yet, proceeding will throw clean error below
       }
 
-      // 2. Create clean single invitation record
+      // 2. Create clean single invitation document
       await this.databases.createDocument(
         this.databaseId,
         this.collectionInvitations,
@@ -221,15 +184,21 @@ export class AppwriteService {
           inviterName: user.name,
           inviteeEmail: normalizedEmail,
           role,
-          status: 'pending',
-          createdAt: new Date().toISOString()
+          status: 'pending'
         }
       );
       this.notificationService.success('Invitation Sent!', `Invited ${normalizedEmail} to ${boardName}`);
       return true;
     } catch (err: any) {
-      this.notificationService.info('Invitation Sent', `Invitation issued for ${normalizedEmail}`);
-      return true;
+      if (err?.code === 404 || err?.type === 'collection_not_found') {
+        this.notificationService.error(
+          'Missing "board_invitations" Collection',
+          'Create collection "board_invitations" in Appwrite Console with permissions (Any: Create, Read, Delete).'
+        );
+      } else {
+        this.handleAppwriteError(err, 'Failed to Send Invitation');
+      }
+      return false;
     }
   }
 
@@ -251,7 +220,7 @@ export class AppwriteService {
       const validInvites: BoardInvitation[] = [];
 
       for (const doc of res.documents) {
-        const createdDateStr = doc['createdAt'] || doc.$createdAt;
+        const createdDateStr = doc.$createdAt || new Date().toISOString();
         const createdTime = new Date(createdDateStr).getTime();
         const isExpired = (now - createdTime) > this.invitationExpiryMs;
 
@@ -302,7 +271,7 @@ export class AppwriteService {
       }
 
       return true;
-    } catch (err: any) {
+    } catch {
       this.pendingInvitations.update(list => list.filter(i => i.id !== invitationId));
       return true;
     }
@@ -313,12 +282,13 @@ export class AppwriteService {
     if (msg.includes('project') || err?.type === 'project_not_found') {
       this.notificationService.error(
         'Invalid Appwrite Project ID',
-        'Check your Project ID in .env.local or add localhost Web Platform in Appwrite Console.'
+        'Check your Project ID in .env.local or add your Web Platform in Appwrite Console.'
       );
-    } else if (msg.includes('CORS') || err?.code === 0) {
+    } else if (msg.includes('CORS') || err?.code === 0 || err?.type === 'general_argument_invalid') {
+      const currentHost = typeof window !== 'undefined' ? window.location.hostname : 'your Vercel domain';
       this.notificationService.error(
-        'CORS Origin Blocked',
-        'In Appwrite Console -> Overview -> Platforms, click "+ Add Platform -> Web App" and enter "localhost".'
+        'Appwrite CORS Origin Blocked',
+        `Add "${currentHost}" in Appwrite Console -> Overview -> Web Platforms -> + Add Platform -> Web App.`
       );
     } else {
       this.notificationService.error(defaultTitle, msg || 'Could not complete request.');

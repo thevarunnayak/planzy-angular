@@ -9,7 +9,7 @@ const INITIAL_ACHIEVEMENTS: Achievement[] = [
   {
     id: 'ach-1',
     title: '✨ First Steps',
-    description: 'Create your very first task in Planzy',
+    description: 'Create your very first task in PlanIQ',
     icon: '✨',
     unlocked: true,
     unlockedAt: new Date().toISOString(),
@@ -82,7 +82,7 @@ export class AchievementStore {
       2: 'Smart Organizer 📘',
       3: 'Productivity Star ⭐',
       4: 'Focus Wizard 🧙‍♂️',
-      5: 'Planzy Master 👑'
+      5: 'PlanIQ Master 👑'
     };
 
     return {

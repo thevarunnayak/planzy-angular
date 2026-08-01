@@ -11,6 +11,7 @@ import { CustomDatePickerComponent } from '../../../shared/components/custom-dat
 import { CustomNumberInputComponent } from '../../../shared/components/custom-number-input/custom-number-input.component';
 import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialog/confirm-dialog.component';
 import { ButtonComponent } from '../../../shared/components/button/button.component';
+import { CustomSingleSelectComponent, SingleSelectOption } from '../../../shared/components/custom-single-select/custom-single-select.component';
 
 @Component({
   selector: 'app-task-dialog',
@@ -23,7 +24,8 @@ import { ButtonComponent } from '../../../shared/components/button/button.compon
     CustomDatePickerComponent,
     CustomNumberInputComponent,
     ConfirmDialogComponent,
-    ButtonComponent
+    ButtonComponent,
+    CustomSingleSelectComponent
   ],
   template: `
     @if (targetBoardId) {
@@ -42,30 +44,42 @@ import { ButtonComponent } from '../../../shared/components/button/button.compon
 
           <!-- Scrollable Modal Body Form -->
           <form id="taskForm" (ngSubmit)="saveTask()" class="modal-form custom-scroll-body">
-            <!-- Icon Tag Selection -->
+            <!-- 1. Workspace Board (Top Hierarchy) -->
             <div class="form-group">
-              <label>Badge Tag</label>
-              <div class="icon-picker">
-                @for (st of availableIcons; track st) {
-                  <button
-                    type="button"
-                    class="icon-opt-btn"
-                    [class.selected]="sticker === st"
-                    (click)="sticker = st"
-                  >
-                    <app-icon [name]="st" [size]="18"></app-icon>
-                  </button>
-                }
+              <label>Workspace Board</label>
+              <app-custom-select
+                [options]="boardOptions()"
+                [value]="targetBoardId"
+                (valueChange)="onBoardChange($event)"
+              ></app-custom-select>
+            </div>
+
+            <!-- 2. Priority Level & Target Column Row -->
+            <div class="form-row">
+              <div class="form-group flex-1">
+                <label>Priority Level</label>
+                <app-custom-select
+                  [options]="priorityOptions"
+                  [(value)]="priority"
+                ></app-custom-select>
+              </div>
+
+              <div class="form-group flex-1">
+                <label>Target Column</label>
+                <app-custom-select
+                  [options]="columnOptions()"
+                  [(value)]="columnId"
+                ></app-custom-select>
               </div>
             </div>
 
-            <!-- Task Title -->
+            <!-- 3. Task Title -->
             <div class="form-group">
               <label>Task Title</label>
               <input
                 type="text"
                 class="form-input"
-                placeholder="What needs to be done?"
+                placeholder="e.g. Design Landing Page Wireframes"
                 [(ngModel)]="title"
                 name="title"
                 required
@@ -73,56 +87,50 @@ import { ButtonComponent } from '../../../shared/components/button/button.compon
               />
             </div>
 
-            <!-- Description -->
+            <!-- 4. Task Description -->
             <div class="form-group">
               <label>Description</label>
               <textarea
                 class="form-textarea"
-                placeholder="Add details, links, or notes..."
+                placeholder="Add task context, notes, or criteria..."
                 [(ngModel)]="description"
                 name="description"
                 rows="3"
               ></textarea>
             </div>
 
-            <!-- Priority & Column Row -->
-            <div class="form-row">
-              <div class="form-group flex-1">
-                <label>Priority</label>
-                <app-custom-select
-                  [options]="priorityOptions"
-                  [value]="priority"
-                  (valueChange)="onPriorityChange($event)"
-                ></app-custom-select>
-              </div>
-
-              <div class="form-group flex-1">
-                <label>Column</label>
-                <app-custom-select
-                  [options]="columnOptions()"
-                  [value]="columnId"
-                  (valueChange)="columnId = $event"
-                ></app-custom-select>
+            <!-- 5. Icon Tag Selection -->
+            <div class="form-group">
+              <label>Icon Badge</label>
+              <div class="icon-selector-grid">
+                @for (ic of availableStickers; track ic) {
+                  <button
+                    type="button"
+                    class="icon-opt-btn"
+                    [class.selected]="sticker === ic"
+                    (click)="sticker = ic"
+                  >
+                    <app-icon [name]="ic" [size]="18"></app-icon>
+                  </button>
+                }
               </div>
             </div>
 
-            <!-- Task Assignee (Group Boards) & Due Date -->
-            <div class="form-row">
-              <div class="form-group flex-1">
+            <!-- Assignee (Full Width Row - Group Boards only) -->
+            @if (isGroupBoard()) {
+              <div class="form-group">
                 <label>Assignee (Group Member)</label>
-                <select
-                  class="form-select"
-                  [ngModel]="selectedAssigneeUserId"
-                  (ngModelChange)="onAssigneeSelect($event)"
-                  name="assigneeSelect"
-                >
-                  <option value="">Unassigned</option>
-                  @for (mem of boardMembers(); track mem.userId) {
-                    <option [value]="mem.userId">{{ mem.name }} ({{ mem.role }})</option>
-                  }
-                </select>
+                <app-custom-single-select
+                  [options]="assigneeOptions()"
+                  [value]="selectedAssigneeUserId"
+                  placeholder="Unassigned"
+                  (valueChange)="onAssigneeSelect($event)"
+                ></app-custom-single-select>
               </div>
+            }
 
+            <!-- Due Date & Est. Hours Row -->
+            <div class="form-row">
               <div class="form-group flex-1">
                 <label>Due Date</label>
                 <app-custom-date-picker
@@ -130,10 +138,7 @@ import { ButtonComponent } from '../../../shared/components/button/button.compon
                   (valueChange)="dueDate = $event"
                 ></app-custom-date-picker>
               </div>
-            </div>
 
-            <!-- Est. Hours & Labels Row -->
-            <div class="form-row">
               <div class="form-group flex-1">
                 <label>Est. Hours</label>
                 <app-custom-number-input
@@ -143,49 +148,50 @@ import { ButtonComponent } from '../../../shared/components/button/button.compon
                   placeholder="1.5"
                 ></app-custom-number-input>
               </div>
+            </div>
 
-              <div class="form-group flex-1">
-                <label>Labels (Comma separated)</label>
-                <input
-                  type="text"
-                  class="form-input"
-                  placeholder="e.g. Design, Frontend"
-                  [ngModel]="labelsInput"
-                  (ngModelChange)="labelsInput = $event"
-                  name="labelsInput"
-                />
-              </div>
+            <!-- Labels Row -->
+            <div class="form-group">
+              <label>Labels (Comma separated)</label>
+              <input
+                type="text"
+                class="form-input"
+                placeholder="e.g. Design, Frontend"
+                [ngModel]="labelsInput"
+                (ngModelChange)="labelsInput = $event"
+                name="labelsInput"
+              />
             </div>
 
             <!-- Task Activity & Comments Section -->
-            @if (isEditMode) {
-              <div class="comments-section">
-                <div class="section-title">
+            @if (isEditMode && task) {
+              <div class="activity-section">
+                <div class="activity-header">
                   <app-icon name="comment" [size]="16"></app-icon>
-                  <span>Activity & Comments ({{ comments.length }})</span>
+                  <strong>Activity & Comments ({{ comments.length }})</strong>
                 </div>
 
                 <div class="comments-list">
-                  @for (c of comments; track c.id) {
-                    <div class="comment-item">
+                  @for (comm of comments; track comm.id) {
+                    <div class="comment-bubble">
                       <div class="comment-avatar">
-                        {{ (c.authorName || 'U').charAt(0).toUpperCase() }}
+                        {{ comm.authorName.charAt(0).toUpperCase() }}
                       </div>
-                      <div class="comment-bubble">
+                      <div class="comment-content">
                         <div class="comment-meta">
-                          <strong>{{ c.authorName }}</strong>
-                          <span class="time">{{ c.createdAt | date:'shortTime' }}</span>
+                          <span class="comment-author">{{ comm.authorName }}</span>
+                          <span class="comment-time">{{ comm.createdAt | date:'shortTime' }}</span>
                         </div>
-                        <p class="comment-text">{{ c.content }}</p>
+                        <p class="comment-text">{{ comm.content || comm.text }}</p>
                       </div>
                     </div>
                   }
                 </div>
 
-                <div class="add-comment-row">
+                <div class="add-comment-box">
                   <input
                     type="text"
-                    class="form-input flex-1"
+                    class="comment-input"
                     placeholder="Write a comment..."
                     [(ngModel)]="newCommentText"
                     name="newCommentText"
@@ -205,38 +211,43 @@ import { ButtonComponent } from '../../../shared/components/button/button.compon
 
           <!-- Fixed Modal Footer -->
           <div class="modal-footer">
-            @if (isEditMode && task && boardStore.canCreateTask()) {
-              <button type="button" class="jelly-btn danger-btn margin-right-auto" (click)="confirmDeleteModalOpen.set(true)">
-                <app-icon name="trash" [size]="14"></app-icon>
+            @if (isEditMode) {
+              <button
+                type="button"
+                class="delete-btn"
+                (click)="confirmDelete.set(true)"
+                title="Delete Task"
+              >
+                <app-icon name="trash" [size]="16"></app-icon>
                 <span>Delete</span>
               </button>
             }
-            <button type="button" class="jelly-btn secondary" (click)="closed.emit()">Cancel</button>
-            <button type="submit" form="taskForm" class="jelly-btn" [disabled]="!title.trim()">
-              {{ isEditMode ? 'Save Task' : 'Create Task' }}
-            </button>
+            <div class="right-actions">
+              <app-button variant="secondary" (btnClick)="closed.emit()">Cancel</app-button>
+              <app-button type="submit" form="taskForm" [disabled]="!title.trim()" (btnClick)="saveTask()">
+                {{ isEditMode ? 'Save Changes' : 'Create Task' }}
+              </app-button>
+            </div>
           </div>
         </div>
-
-        <!-- Custom Confirmation Dialog for Task Deletion -->
-        @if (confirmDeleteModalOpen()) {
-          <app-confirm-dialog
-            title="Delete Task?"
-            [message]="'Are you sure you want to delete task &quot;' + title + '&quot;?'"
-            confirmText="Delete Task"
-            (confirmed)="deleteTaskConfirmed()"
-            (cancelled)="confirmDeleteModalOpen.set(false)"
-          ></app-confirm-dialog>
-        }
       </div>
+
+      <!-- Delete Task Confirmation Modal -->
+      @if (confirmDelete()) {
+        <app-confirm-dialog
+          title="Delete Task?"
+          message="Are you sure you want to delete this task? This action cannot be undone."
+          confirmText="Delete Task"
+          (confirmed)="deleteTaskConfirmed()"
+          (cancelled)="confirmDelete.set(false)"
+        ></app-confirm-dialog>
+      }
     } @else {
-      <!-- Interactive Confirmation Dialog Popup when 0 Boards Exist -->
+      <!-- Fallback modal if 0 boards exist -->
       <app-confirm-dialog
-        title="No Boards Available"
-        message="You don't have any workspace boards created yet. Would you like to create a board first?"
-        confirmText="Create a Board"
-        cancelText="Cancel"
-        [isDanger]="false"
+        title="No Board Found"
+        message="You need at least one workspace board before creating tasks."
+        confirmText="Create Board"
         (confirmed)="redirectToCreateBoard()"
         (cancelled)="closed.emit()"
       ></app-confirm-dialog>
@@ -278,11 +289,15 @@ import { ButtonComponent } from '../../../shared/components/button/button.compon
       .header-title-group {
         display: flex;
         align-items: center;
-        gap: 8px;
+        gap: 10px;
         color: var(--primary);
-      }
 
-      h3 { font-size: 1.25rem; font-weight: 900; color: var(--text); }
+        h3 {
+          font-size: 1.25rem;
+          font-weight: 900;
+          color: var(--text);
+        }
+      }
     }
 
     .close-btn {
@@ -292,6 +307,9 @@ import { ButtonComponent } from '../../../shared/components/button/button.compon
       cursor: pointer;
       display: flex;
       align-items: center;
+      padding: 4px;
+      border-radius: var(--radius-sm);
+      &:hover { color: var(--text); background: var(--background); }
     }
 
     .modal-form {
@@ -299,25 +317,8 @@ import { ButtonComponent } from '../../../shared/components/button/button.compon
       flex-direction: column;
       gap: 14px;
       overflow-y: auto;
-      padding-right: 8px;
-      padding-bottom: 8px;
+      padding-right: 4px;
       flex: 1;
-    }
-
-    /* Cute Inset Scrollbar */
-    .custom-scroll-body::-webkit-scrollbar {
-      width: 6px;
-    }
-    .custom-scroll-body::-webkit-scrollbar-track {
-      background: var(--background);
-      border-radius: 999px;
-    }
-    .custom-scroll-body::-webkit-scrollbar-thumb {
-      background: var(--secondary);
-      border-radius: 999px;
-    }
-    .custom-scroll-body::-webkit-scrollbar-thumb:hover {
-      background: var(--primary);
     }
 
     .form-group {
@@ -325,19 +326,24 @@ import { ButtonComponent } from '../../../shared/components/button/button.compon
       flex-direction: column;
       gap: 6px;
 
-      label { font-size: 0.8rem; font-weight: 800; color: var(--text-muted); }
+      label {
+        font-size: 0.8rem;
+        font-weight: 800;
+        color: var(--text-muted);
+      }
     }
 
     .form-row {
       display: flex;
-      gap: 14px;
+      gap: 12px;
+
+      .flex-1 {
+        flex: 1;
+      }
     }
 
-    .flex-1 { flex: 1; }
-
-    .icon-picker {
+    .icon-selector-grid {
       display: flex;
-      flex-wrap: wrap;
       gap: 8px;
     }
 
@@ -352,6 +358,7 @@ import { ButtonComponent } from '../../../shared/components/button/button.compon
       display: flex;
       align-items: center;
       justify-content: center;
+      transition: all 0.2s ease;
 
       &.selected {
         border-color: var(--primary);
@@ -369,49 +376,54 @@ import { ButtonComponent } from '../../../shared/components/button/button.compon
       font-size: 0.9rem;
       font-weight: 700;
       outline: none;
+      width: 100%;
 
-      &:focus { border-color: var(--primary); }
+      &:focus {
+        border-color: var(--primary);
+      }
     }
 
-    .comments-section {
-      margin-top: 10px;
+    .activity-section {
+      margin-top: 8px;
       padding-top: 14px;
       border-top: 1.5px solid var(--border);
       display: flex;
       flex-direction: column;
-      gap: 12px;
+      gap: 10px;
+    }
 
-      .section-title {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        font-size: 0.88rem;
-        font-weight: 800;
-        color: var(--primary);
-      }
+    .activity-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.85rem;
+      color: var(--text);
     }
 
     .comments-list {
       display: flex;
       flex-direction: column;
-      gap: 10px;
-      max-height: 180px;
+      gap: 8px;
+      max-height: 140px;
       overflow-y: auto;
     }
 
-    .comment-item {
+    .comment-bubble {
       display: flex;
-      gap: 10px;
       align-items: flex-start;
+      gap: 8px;
+      background: var(--background);
+      padding: 8px 12px;
+      border-radius: var(--radius-md);
     }
 
     .comment-avatar {
-      width: 28px;
-      height: 28px;
+      width: 24px;
+      height: 24px;
       border-radius: var(--radius-full);
       background: var(--primary);
       color: white;
-      font-size: 0.75rem;
+      font-size: 0.72rem;
       font-weight: 900;
       display: flex;
       align-items: center;
@@ -419,47 +431,76 @@ import { ButtonComponent } from '../../../shared/components/button/button.compon
       flex-shrink: 0;
     }
 
-    .comment-bubble {
-      background: var(--background);
-      border: 1.5px solid var(--border);
-      padding: 8px 12px;
-      border-radius: var(--radius-md);
-      flex: 1;
-
-      .comment-meta {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        margin-bottom: 4px;
-        strong { font-size: 0.8rem; color: var(--text); }
-        .time { font-size: 0.68rem; color: var(--text-muted); }
-      }
-
-      .comment-text {
-        font-size: 0.82rem;
-        color: var(--text);
-        line-height: 1.3;
-      }
+    .comment-content {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
     }
 
-    .add-comment-row {
+    .comment-meta {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      .comment-author { font-size: 0.75rem; font-weight: 800; color: var(--text); }
+      .comment-time { font-size: 0.68rem; color: var(--text-muted); }
+    }
+
+    .comment-text {
+      font-size: 0.82rem;
+      color: var(--text);
+    }
+
+    .add-comment-box {
       display: flex;
       gap: 8px;
-      align-items: center;
+    }
+
+    .comment-input {
+      flex: 1;
+      padding: 8px 12px;
+      border-radius: var(--radius-md);
+      border: 1.5px solid var(--border);
+      background: var(--background);
+      color: var(--text);
+      font-size: 0.84rem;
+      outline: none;
+
+      &:focus { border-color: var(--primary); }
     }
 
     .modal-footer {
       display: flex;
       align-items: center;
-      justify-content: flex-end;
-      gap: 10px;
-      padding-top: 16px;
-      padding-bottom: 12px;
+      justify-content: space-between;
+      padding-top: 10px;
       border-top: 1.5px solid var(--border);
       flex-shrink: 0;
     }
 
-    .margin-right-auto { margin-right: auto; }
+    .right-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-left: auto;
+    }
+
+    .delete-btn {
+      background: transparent;
+      border: none;
+      color: var(--danger);
+      font-size: 0.85rem;
+      font-weight: 800;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 6px 10px;
+      border-radius: var(--radius-md);
+
+      &:hover {
+        background: var(--danger-light);
+      }
+    }
   `]
 })
 export class TaskDialogComponent implements OnInit {
@@ -467,11 +508,18 @@ export class TaskDialogComponent implements OnInit {
   @Output() closed = new EventEmitter<void>();
 
   private taskStore = inject(TaskStore);
-  boardStore = inject(BoardStore);
+  private boardStore = inject(BoardStore);
   private appwriteService = inject(AppwriteService);
 
   isEditMode = false;
-  targetBoardId = '';
+  targetBoardIdSignal = signal<string>('');
+  get targetBoardId(): string {
+    return this.targetBoardIdSignal();
+  }
+  set targetBoardId(val: string) {
+    this.targetBoardIdSignal.set(val || '');
+  }
+
   title = '';
   description = '';
   priority: TaskPriority = 'medium';
@@ -480,36 +528,81 @@ export class TaskDialogComponent implements OnInit {
   estimatedHours?: number;
   sticker: IconName = 'bookmark';
   labelsInput = '';
-  selectedAssigneeUserId = '';
   assignee?: TaskAssignee;
+  selectedAssigneeUserId = '';
   comments: TaskComment[] = [];
   newCommentText = '';
 
-  confirmDeleteModalOpen = signal(false);
+  confirmDelete = signal(false);
 
-  availableIcons: IconName[] = ['bookmark', 'zap', 'flame', 'star', 'target', 'coffee', 'clock'];
+  availableStickers: IconName[] = ['bookmark', 'flame', 'zap', 'star', 'target', 'sparkles'];
 
   priorityOptions: SelectOption[] = [
-    { value: 'urgent', label: 'Urgent', icon: 'alert' },
-    { value: 'high', label: 'High', icon: 'flame' },
-    { value: 'medium', label: 'Medium', icon: 'zap' },
-    { value: 'low', label: 'Low', icon: 'bookmark' }
+    { value: 'low', label: 'Low', icon: 'bookmark', color: 'var(--text-muted)' },
+    { value: 'medium', label: 'Medium', icon: 'zap', color: 'var(--primary)' },
+    { value: 'high', label: 'High', icon: 'flame', color: 'var(--orange)' },
+    { value: 'urgent', label: 'Urgent', icon: 'alert', color: 'var(--danger)' }
   ];
 
+  boardOptions = computed<SelectOption[]>(() => {
+    return this.boardStore.boards().map(b => ({
+      value: b.id,
+      label: b.name,
+      icon: 'folder'
+    }));
+  });
+
+  isGroupBoard = computed<boolean>(() => {
+    const boardId = this.targetBoardIdSignal();
+    const board = this.boardStore.boards().find(b => b.id === boardId);
+    return Boolean(board?.isGroup);
+  });
+
+  onBoardChange(newBoardId: string): void {
+    this.targetBoardIdSignal.set(newBoardId);
+    const board = this.boardStore.boards().find(b => b.id === newBoardId);
+    if (board && board.columns.length > 0) {
+      this.columnId = board.columns[0].id;
+    }
+    this.selectedAssigneeUserId = '';
+    this.assignee = undefined;
+  }
+
   boardMembers = computed(() => {
-    const board = this.boardStore.boards().find(b => b.id === this.targetBoardId);
+    const boardId = this.targetBoardIdSignal();
+    const board = this.boardStore.boards().find(b => b.id === boardId);
     return board?.members || [];
   });
 
-  columnOptions = () => {
-    const board = this.boardStore.boards().find(b => b.id === this.targetBoardId);
+  assigneeOptions = computed<SingleSelectOption[]>(() => {
+    const members = this.boardMembers();
+    const opts: SingleSelectOption[] = [
+      { value: '', label: 'Unassigned', icon: 'user' }
+    ];
+
+    members.forEach(mem => {
+      opts.push({
+        value: mem.userId,
+        label: mem.name || mem.email || 'Member',
+        sublabel: mem.email,
+        avatarInitials: (mem.name || mem.email || 'M').charAt(0).toUpperCase(),
+        badge: mem.role === 'owner' ? 'Owner' : (mem.role === 'admin' ? 'Admin' : 'Member')
+      });
+    });
+
+    return opts;
+  });
+
+  columnOptions = computed<SelectOption[]>(() => {
+    const boardId = this.targetBoardIdSignal();
+    const board = this.boardStore.boards().find(b => b.id === boardId);
     if (!board || board.columns.length === 0) return [];
     return board.columns.map(c => ({
       value: c.id,
       label: c.name,
       icon: 'folder'
     }));
-  };
+  });
 
   ngOnInit(): void {
     const boards = this.boardStore.boards();
@@ -546,46 +639,45 @@ export class TaskDialogComponent implements OnInit {
       if (mem) {
         this.assignee = {
           userId: mem.userId,
-          name: mem.name,
+          name: mem.name || mem.email || 'Member',
           email: mem.email
         };
       }
     }
   }
 
-  onPriorityChange(val: string): void {
-    this.priority = val as TaskPriority;
-  }
-
   postComment(): void {
-    if (!this.newCommentText.trim()) return;
-
+    const text = this.newCommentText.trim();
     const user = this.appwriteService.currentUser();
+    if (!text || !this.task || !user) return;
+
     const newComment: TaskComment = {
-      id: `comment-${Date.now()}`,
-      authorId: user ? user.id : 'guest',
-      authorName: user ? user.name : 'Guest User',
-      content: this.newCommentText.trim(),
+      id: `comm-${Date.now()}`,
+      authorId: user.id,
+      authorName: user.name || user.email,
+      content: text,
+      text,
       createdAt: new Date().toISOString()
     };
 
-    this.comments.push(newComment);
+    this.comments = [...this.comments, newComment];
     this.newCommentText = '';
 
-    if (this.isEditMode && this.task) {
-      this.taskStore.updateTask(this.task.id, {
-        comments: this.comments
-      });
-    }
+    this.taskStore.updateTask(this.task.id, {
+      comments: this.comments
+    });
   }
 
+  isSubmitting = false;
+
   saveTask(): void {
-    if (!this.title.trim() || !this.targetBoardId) return;
+    if (this.isSubmitting || !this.title.trim()) return;
+    this.isSubmitting = true;
 
     const labels = this.labelsInput
       .split(',')
-      .map(s => s.trim())
-      .filter(s => s.length > 0);
+      .map(l => l.trim())
+      .filter(l => l.length > 0);
 
     if (this.isEditMode && this.task) {
       this.taskStore.updateTask(this.task.id, {
@@ -596,9 +688,9 @@ export class TaskDialogComponent implements OnInit {
         dueDate: this.dueDate || undefined,
         estimatedHours: this.estimatedHours,
         sticker: this.sticker,
+        labels,
         assignee: this.assignee,
-        comments: this.comments,
-        labels
+        comments: this.comments
       });
     } else {
       this.taskStore.createTask({
@@ -610,23 +702,20 @@ export class TaskDialogComponent implements OnInit {
         dueDate: this.dueDate || undefined,
         estimatedHours: this.estimatedHours,
         sticker: this.sticker,
-        assignee: this.assignee,
-        labels
+        labels,
+        assignee: this.assignee
       });
     }
 
     this.closed.emit();
-  }
-
-  redirectToCreateBoard(): void {
-    this.closed.emit();
-    this.boardStore.openCreateModal();
+    setTimeout(() => {
+      this.isSubmitting = false;
+    }, 400);
   }
 
   deleteTaskConfirmed(): void {
     if (this.task) {
       this.taskStore.deleteTask(this.task.id);
-      this.confirmDeleteModalOpen.set(false);
       this.closed.emit();
     }
   }
@@ -635,5 +724,10 @@ export class TaskDialogComponent implements OnInit {
     if ((event.target as HTMLElement).classList.contains('modal-overlay')) {
       this.closed.emit();
     }
+  }
+
+  redirectToCreateBoard(): void {
+    this.closed.emit();
+    this.boardStore.openCreateModal();
   }
 }
