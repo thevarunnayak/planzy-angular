@@ -360,7 +360,8 @@ import { ExportImportService } from '../../../core/services/export-import.servic
       position: absolute;
       top: calc(100% + 8px);
       right: 0;
-      width: 180px;
+      min-width: 240px;
+      width: max-content;
       padding: 8px;
       display: flex;
       flex-direction: column;
@@ -370,15 +371,16 @@ import { ExportImportService } from '../../../core/services/export-import.servic
       .dropdown-item {
         background: transparent;
         border: none;
-        padding: 8px 12px;
+        padding: 9px 14px;
         border-radius: var(--radius-md);
         display: flex;
         align-items: center;
-        gap: 8px;
-        font-size: 0.84rem;
+        gap: 10px;
+        font-size: 0.85rem;
         font-weight: 800;
         cursor: pointer;
         color: var(--text);
+        white-space: nowrap;
         transition: background 0.15s ease;
 
         &:hover {

@@ -257,76 +257,140 @@ export class TaskStore {
 
     // Async sync to Appwrite Cloud if logged in
     if (user) {
-      const serializedComments = dto.comments ? JSON.stringify(dto.comments) : '[]';
-
-      const fullPayload: any = {
-        boardId: dto.boardId || 'default-board',
-        columnId: targetColumnId,
-        title: dto.title,
-        description: dto.description || '',
-        priority: dto.priority || 'medium',
-        dueDate: dto.dueDate || '',
-        estimatedHours: dto.estimatedHours || 0,
-        labels: taskLabels,
-        assignee: dto.assignee ? JSON.stringify(dto.assignee) : '',
-        comments: serializedComments,
-        isFavorite: false,
-        userId: user.id
-      };
-
-      const tryCreateDoc = (payloadData: any) => {
-        return this.appwriteService.databases.createDocument(
-          this.appwriteService.databaseId,
-          'tasks',
-          ID.unique(),
-          payloadData
-        );
-      };
-
-      tryCreateDoc(fullPayload).then(doc => {
-        this.tasks.update(list => list.map(t => t.id === tempId ? { ...t, id: doc.$id } : t));
-        this.notificationService.success('Cloud Synced!', `Task "${dto.title}" saved to Appwrite.`);
-      }).catch(err => {
-        console.warn('Appwrite full task creation failed, trying fallback with assignee & comments:', err);
-        const fallbackAssigneePayload: any = {
-          boardId: dto.boardId || 'default-board',
-          columnId: targetColumnId,
-          title: dto.title,
-          priority: dto.priority || 'medium',
-          assignee: dto.assignee ? JSON.stringify(dto.assignee) : '',
-          comments: serializedComments,
-          userId: user.id
-        };
-
-        tryCreateDoc(fallbackAssigneePayload).then(doc => {
-          this.tasks.update(list => list.map(t => t.id === tempId ? { ...t, id: doc.$id } : t));
-          this.notificationService.success('Cloud Synced!', `Task "${dto.title}" saved to Appwrite.`);
-        }).catch(err2 => {
-          console.warn('Appwrite assignee/comments fallback failed, trying minimal core payload:', err2);
-          const barePayload: any = {
-            boardId: dto.boardId || 'default-board',
-            columnId: targetColumnId,
-            title: dto.title,
-            userId: user.id
-          };
-
-          tryCreateDoc(barePayload).then(doc => {
-            this.tasks.update(list => list.map(t => t.id === tempId ? { ...t, id: doc.$id } : t));
-            this.notificationService.success('Cloud Synced!', `Task "${dto.title}" saved to Appwrite.`);
-          }).catch(err3 => {
-            console.error('Appwrite task creation failed completely:', err3);
-            this.notificationService.info(
-              'Saved Locally',
-              `Task "${dto.title}" preserved locally. (Appwrite error: ${err3?.message || 'Check Appwrite attributes'}).`
-            );
-          });
-        });
-      });
+      this.syncTaskToCloud(newTask);
     } else {
       this.notificationService.info('Saved Locally', `Sign in to sync "${dto.title}" to Appwrite Cloud.`);
     }
 
     return newTask;
+  }
+
+  /** Syncs a single task to Appwrite Cloud if the board ID is already a cloud ID. */
+  syncTaskToCloud(task: Task): void {
+    const user = this.appwriteService.currentUser();
+    if (!user || !task.boardId || task.boardId.startsWith('board-')) {
+      console.log('[Planzy] Board ID is temporary or user not logged in. Queuing cloud sync.');
+      return;
+    }
+
+    const serializedComments = task.comments ? JSON.stringify(task.comments) : '[]';
+    const serializedAttachments = (task.attachments && task.attachments.length > 0)
+      ? task.attachments.map((a: any) => JSON.stringify(a))
+      : null;
+
+    const fullPayload: any = {
+      boardId: task.boardId,
+      columnId: task.columnId,
+      title: task.title,
+      description: task.description || '',
+      priority: task.priority || 'medium',
+      dueDate: task.dueDate || '',
+      estimatedHours: task.estimatedHours || 0,
+      labels: task.labels || [],
+      assignee: task.assignee ? JSON.stringify(task.assignee) : '',
+      comments: serializedComments,
+      isFavorite: task.isFavorite || false,
+      userId: user.id
+    };
+
+    const patchAttachments = (docId: string) => {
+      if (!serializedAttachments) return;
+      this.appwriteService.databases.updateDocument(
+        this.appwriteService.databaseId,
+        'tasks',
+        docId,
+        { attachments: serializedAttachments }
+      ).catch(() => {});
+    };
+
+    const tryCreateDoc = (payloadData: any) => {
+      return this.appwriteService.databases.createDocument(
+        this.appwriteService.databaseId,
+        'tasks',
+        ID.unique(),
+        payloadData
+      );
+    };
+
+    tryCreateDoc(fullPayload).then(doc => {
+      this.tasks.update(list => list.map(t => t.id === task.id ? { ...t, id: doc.$id } : t));
+      this.notificationService.success('Cloud Synced!', `Task "${task.title}" saved to Appwrite.`);
+      patchAttachments(doc.$id);
+    }).catch(err => {
+      console.warn('Appwrite full task creation failed, trying fallback:', err);
+      const fallbackAssigneePayload: any = {
+        boardId: task.boardId,
+        columnId: task.columnId,
+        title: task.title,
+        priority: task.priority || 'medium',
+        assignee: task.assignee ? JSON.stringify(task.assignee) : '',
+        comments: serializedComments,
+        userId: user.id
+      };
+
+      tryCreateDoc(fallbackAssigneePayload).then(doc => {
+        this.tasks.update(list => list.map(t => t.id === task.id ? { ...t, id: doc.$id } : t));
+        this.notificationService.success('Cloud Synced!', `Task "${task.title}" saved to Appwrite.`);
+        patchAttachments(doc.$id);
+      }).catch(err2 => {
+        const barePayload: any = {
+          boardId: task.boardId,
+          columnId: task.columnId,
+          title: task.title,
+          priority: task.priority || 'medium',
+          userId: user.id
+        };
+
+        tryCreateDoc(barePayload).then(doc => {
+          this.tasks.update(list => list.map(t => t.id === task.id ? { ...t, id: doc.$id } : t));
+          this.notificationService.success('Cloud Synced!', `Task "${task.title}" saved to Appwrite.`);
+          patchAttachments(doc.$id);
+        }).catch(err3 => {
+          console.error('Appwrite task creation failed:', err3);
+          this.notificationService.info(
+            'Saved Locally',
+            `Task "${task.title}" preserved locally. (${err3?.message || 'Check Appwrite attributes'}).`
+          );
+        });
+      });
+    });
+  }
+
+  /** Update boardId on tasks when a local temporary board ID is updated to a real Appwrite ID. */
+  syncBoardIdForTasks(tempBoardId: string, realBoardId: string): void {
+    // 1. Update in-memory tasks
+    this.tasks.update(list => list.map(t => t.boardId === tempBoardId ? { ...t, boardId: realBoardId } : t));
+
+    // 2. Sync any tasks to Appwrite Cloud that were queued under tempBoardId
+    const user = this.appwriteService.currentUser();
+    if (!user) return;
+
+    const pendingTasks = this.tasks().filter(t => t.boardId === realBoardId);
+    pendingTasks.forEach(task => {
+      if (task.id.startsWith('task-')) {
+        this.syncTaskToCloud(task);
+      }
+    });
+  }
+
+  /** Delete all tasks associated with a deleted board ID. */
+  deleteTasksForBoard(boardId: string): void {
+    const user = this.appwriteService.currentUser();
+    const tasksToDelete = this.tasks().filter(t => t.boardId === boardId);
+
+    if (user) {
+      tasksToDelete.forEach(task => {
+        if (!task.id.startsWith('task-')) {
+          this.appwriteService.databases.deleteDocument(
+            this.appwriteService.databaseId,
+            'tasks',
+            task.id
+          ).catch(() => {});
+        }
+      });
+    }
+
+    this.tasks.update(list => list.filter(t => t.boardId !== boardId));
   }
 
   updateTask(taskId: string, dto: UpdateTaskDto): void {
@@ -349,6 +413,11 @@ export class TaskStore {
         ? (typeof dto.comments === 'string' ? dto.comments : JSON.stringify(dto.comments))
         : undefined;
 
+      // Attachments patched separately to not block main update if attribute is missing
+      const serializedAttachments = dto.attachments !== undefined
+        ? dto.attachments.map((a: any) => JSON.stringify(a))
+        : undefined;
+
       const fullPayload: any = {};
       if (dto.title !== undefined) fullPayload.title = dto.title;
       if (dto.description !== undefined) fullPayload.description = dto.description;
@@ -360,6 +429,25 @@ export class TaskStore {
       if (dto.isFavorite !== undefined) fullPayload.isFavorite = dto.isFavorite;
       if (dto.assignee !== undefined) fullPayload.assignee = dto.assignee ? JSON.stringify(dto.assignee) : '';
       if (serializedComments !== undefined) fullPayload.comments = serializedComments;
+      // NOTE: attachments are NOT included here — they go in a separate patch below
+
+      const patchAttachments = () => {
+        if (serializedAttachments === undefined) return;
+        this.appwriteService.databases.updateDocument(
+          this.appwriteService.databaseId,
+          'tasks',
+          taskId,
+          { attachments: serializedAttachments }
+        ).then(() => {
+          console.log('[Planzy] Attachments updated on task', taskId);
+        }).catch(err => {
+          console.error('[Planzy] Attachments patch failed — add a String[] attribute named "attachments" to your tasks collection in Appwrite Console.', err);
+          this.notificationService.error(
+            'Attachments Not Saved',
+            'Add a String[] attribute named "attachments" to the tasks collection in Appwrite Console.'
+          );
+        });
+      };
 
       if (Object.keys(fullPayload).length > 0) {
         this.appwriteService.databases.updateDocument(
@@ -369,6 +457,7 @@ export class TaskStore {
           fullPayload
         ).then(() => {
           console.log('Appwrite task updated with full payload');
+          patchAttachments();
         }).catch(err => {
           console.warn('Appwrite full updateTask failed, trying fallback with assignee & comments:', err);
 
@@ -388,6 +477,7 @@ export class TaskStore {
             fallbackAssigneePayload
           ).then(() => {
             console.log('Appwrite task updated with assignee & comments fallback payload');
+            patchAttachments();
           }).catch(err2 => {
             console.warn('Appwrite assignee/comments fallback update failed, trying array comments fallback:', err2);
 
@@ -399,10 +489,13 @@ export class TaskStore {
                 'tasks',
                 taskId,
                 fallbackAssigneePayload
-              ).catch(() => {});
+              ).then(() => patchAttachments()).catch(() => {});
             }
           });
         });
+      } else {
+        // Only attachments changed — patch them directly
+        patchAttachments();
       }
     }
   }

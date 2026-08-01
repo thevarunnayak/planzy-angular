@@ -11,13 +11,24 @@ export class DashboardStore {
   private boardStore = inject(BoardStore);
 
   stats = computed<DashboardStats>(() => {
-    const tasks = this.taskStore.tasks();
+    const boards = this.boardStore.boards();
+    const validBoardIds = new Set(boards.map(b => b.id));
+
+    // Filter tasks so dashboard only counts tasks belonging to existing boards
+    const tasks = this.taskStore.tasks().filter(t => validBoardIds.has(t.boardId));
     const totalTasks = tasks.length;
-    const completedTasks = tasks.filter(t => t.columnId === 'done').length;
+    const completedTasks = tasks.filter(t => {
+      if (!t.columnId) return false;
+      const lower = t.columnId.toLowerCase();
+      return lower === 'done' || lower.includes('done') || lower.includes('achieved') || lower.includes('published');
+    }).length;
     const pendingTasks = totalTasks - completedTasks;
 
     const todayStr = new Date().toISOString().split('T')[0];
-    const overdueTasks = tasks.filter(t => t.columnId !== 'done' && t.dueDate && t.dueDate < todayStr).length;
+    const overdueTasks = tasks.filter(t => {
+      const isDone = t.columnId && (t.columnId === 'done' || t.columnId.toLowerCase().includes('done'));
+      return !isDone && t.dueDate && t.dueDate < todayStr;
+    }).length;
 
     const productivityScore = totalTasks > 0
       ? Math.round((completedTasks / totalTasks) * 100)

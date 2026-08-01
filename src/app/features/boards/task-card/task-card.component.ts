@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter, inject } from '@angular/core';
+import { Component, Input, Output, EventEmitter, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Task } from '../../../core/models/task.model';
 import { RelativeDatePipe } from '../../../shared/pipes/relative-date.pipe';
@@ -6,6 +6,7 @@ import { ProgressPipe } from '../../../shared/pipes/progress.pipe';
 import { PriorityBadgePipe } from '../../../shared/pipes/priority-badge.pipe';
 import { TaskStore } from '../../../core/stores/task.store';
 import { IconComponent } from '../../../shared/components/icon/icon.component';
+import { LightboxCarouselComponent } from '../../../shared/components/lightbox-carousel/lightbox-carousel.component';
 
 @Component({
   selector: 'app-task-card',
@@ -15,7 +16,8 @@ import { IconComponent } from '../../../shared/components/icon/icon.component';
     RelativeDatePipe,
     ProgressPipe,
     PriorityBadgePipe,
-    IconComponent
+    IconComponent,
+    LightboxCarouselComponent
   ],
   template: `
     <div
@@ -59,7 +61,7 @@ import { IconComponent } from '../../../shared/components/icon/icon.component';
           <p class="card-desc">{{ task.description }}</p>
         }
 
-        <!-- Labels Pills with Spacing -->
+        <!-- Labels Pills -->
         @if (task.labels && task.labels.length > 0) {
           <div class="card-labels">
             @for (label of task.labels; track label) {
@@ -80,7 +82,7 @@ import { IconComponent } from '../../../shared/components/icon/icon.component';
         }
       </div>
 
-      <!-- Footer Info (Pinned to bottom so all cards match height) -->
+      <!-- Footer Info -->
       <div class="card-footer">
         <div class="footer-left">
           @if (task.dueDate) {
@@ -88,6 +90,19 @@ import { IconComponent } from '../../../shared/components/icon/icon.component';
               <app-icon name="clock" [size]="12"></app-icon>
               {{ task.dueDate | relativeDate }}
             </span>
+          }
+
+          <!-- Attachment pill: paperclip pin icon, clickable to open carousel -->
+          @if (task.attachments && task.attachments.length > 0) {
+            <button
+              type="button"
+              class="att-pill-btn"
+              (click)="openCarousel(0, $event)"
+              [title]="task.attachments.length + ' attachments'"
+            >
+              <app-icon name="paperclip" [size]="12"></app-icon>
+              <span>{{ task.attachments.length }}</span>
+            </button>
           }
         </div>
 
@@ -98,19 +113,12 @@ import { IconComponent } from '../../../shared/components/icon/icon.component';
             </div>
           }
 
-          @if (task.attachments && task.attachments.length > 0) {
-            <span class="meta-item attachment-pill" [title]="task.attachments.length + ' attachments'">
-              <app-icon name="bookmark" [size]="12"></app-icon>
-              <span>{{ task.attachments.length }}</span>
-            </span>
-          }
-
           <button
             type="button"
             class="comment-badge-btn"
             [class.active]="task.comments && task.comments.length > 0"
             (click)="onCommentBtnClick($event)"
-            [title]="(task.comments?.length || 0) + ' comments (Click to view & add)'"
+            [title]="(task.comments ? task.comments.length : 0) + ' comments'"
           >
             <app-icon name="comment" [size]="12"></app-icon>
             <span>{{ task.comments ? task.comments.length : 0 }}</span>
@@ -125,6 +133,15 @@ import { IconComponent } from '../../../shared/components/icon/icon.component';
         </div>
       </div>
     </div>
+
+    <!-- Fullscreen Carousel Lightbox -->
+    @if (lightboxOpen()) {
+      <app-lightbox-carousel
+        [attachments]="task.attachments || []"
+        [startIndex]="lightboxStartIndex()"
+        (close)="lightboxOpen.set(false)"
+      ></app-lightbox-carousel>
+    }
   `,
   styles: [`
     :host {
@@ -161,6 +178,13 @@ import { IconComponent } from '../../../shared/components/icon/icon.component';
           text-decoration: line-through;
         }
       }
+    }
+
+    .card-main-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      cursor: pointer;
     }
 
     .board-origin-chip {
@@ -269,6 +293,7 @@ import { IconComponent } from '../../../shared/components/icon/icon.component';
       color: var(--text-muted);
     }
 
+    /* Footer */
     .card-footer {
       display: flex;
       align-items: center;
@@ -282,6 +307,7 @@ import { IconComponent } from '../../../shared/components/icon/icon.component';
     .footer-left {
       display: flex;
       align-items: center;
+      gap: 6px;
     }
 
     .due-date-pill {
@@ -294,6 +320,28 @@ import { IconComponent } from '../../../shared/components/icon/icon.component';
       background: var(--primary-light);
       padding: 3px 8px;
       border-radius: var(--radius-sm);
+    }
+
+    /* Attachment pill — left side with paperclip pin icon, clickable */
+    .att-pill-btn {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 0.74rem;
+      font-weight: 800;
+      color: var(--text-muted);
+      background: var(--background);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 3px 7px;
+      cursor: pointer;
+      transition: all 0.15s;
+
+      &:hover {
+        background: var(--primary-light);
+        color: var(--primary);
+        border-color: var(--primary);
+      }
     }
 
     .assignee-badge-avatar {
@@ -366,6 +414,9 @@ export class TaskCardComponent {
 
   private taskStore = inject(TaskStore);
 
+  lightboxOpen = signal(false);
+  lightboxStartIndex = signal(0);
+
   getPriorityIconName(priority: string): 'alert' | 'flame' | 'zap' | 'bookmark' {
     switch (priority) {
       case 'urgent': return 'alert';
@@ -387,5 +438,11 @@ export class TaskCardComponent {
   toggleFav(event: MouseEvent): void {
     event.stopPropagation();
     this.taskStore.toggleFavorite(this.task.id);
+  }
+
+  openCarousel(startIndex: number, event: MouseEvent): void {
+    event.stopPropagation();
+    this.lightboxStartIndex.set(startIndex);
+    this.lightboxOpen.set(true);
   }
 }

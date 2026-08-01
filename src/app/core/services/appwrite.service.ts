@@ -21,7 +21,13 @@ export class AppwriteService {
   databases = new Databases(this.client);
   storage = new Storage(this.client);
 
-  readonly storageBucketId = 'task_attachments';
+  get storageBucketId(): string {
+    try {
+      return process.env.APPWRITE_STORAGE_BUCKET_ID || 'task_attachments';
+    } catch {
+      return 'task_attachments';
+    }
+  }
 
   currentUser = signal<User | null>(null);
   authModalOpen = signal<boolean>(false);
@@ -63,9 +69,9 @@ export class AppwriteService {
 
   get databaseId(): string {
     try {
-      return process.env.APPWRITE_DATABASE_ID || 'planiq_db';
+      return process.env.APPWRITE_DATABASE_ID || 'planzy_db';
     } catch {
-      return 'planiq_db';
+      return 'planzy_db';
     }
   }
 
@@ -299,18 +305,28 @@ export class AppwriteService {
   }
 
   async uploadTaskAttachmentFile(file: File): Promise<{ url: string; fileId: string }> {
+    const bucketId = this.storageBucketId;
+    console.log('[Planzy Storage] Uploading to bucket:', bucketId);
     try {
       const uploaded = await this.storage.createFile(
-        this.storageBucketId,
+        bucketId,
         ID.unique(),
         file
       );
       const endpoint = process.env.APPWRITE_ENDPOINT || 'https://sgp.cloud.appwrite.io/v1';
       const projectId = process.env.APPWRITE_PROJECT_ID || '6a6b908c00170e25d2d4';
-      const url = `${endpoint}/storage/buckets/${this.storageBucketId}/files/${uploaded.$id}/view?project=${projectId}`;
+      const url = `${endpoint}/storage/buckets/${bucketId}/files/${uploaded.$id}/view?project=${projectId}`;
+      console.log('[Planzy Storage] Upload success. File ID:', uploaded.$id, 'URL:', url);
       return { url, fileId: uploaded.$id };
     } catch (err: any) {
-      console.warn('Appwrite Storage upload fallback to Data URL:', err);
+      const errMsg = err?.message || err?.type || 'Unknown error';
+      const errCode = err?.code;
+      console.error('[Planzy Storage] Upload failed — bucket:', bucketId, '| Error:', errMsg, '| Code:', errCode, '| Full:', err);
+      this.notificationService.error(
+        'Attachment Upload Failed',
+        `Bucket "${bucketId}": ${errMsg}. Falling back to local storage.`
+      );
+      // Fallback: store file as Data URL locally
       const dataUrl = await this.readFileAsDataUrl(file);
       return { url: dataUrl, fileId: `local-${Date.now()}` };
     }

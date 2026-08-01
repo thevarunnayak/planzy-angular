@@ -3,6 +3,7 @@ declare namespace NodeJS {
     APPWRITE_ENDPOINT: string;
     APPWRITE_PROJECT_ID: string;
     APPWRITE_DATABASE_ID: string;
+    APPWRITE_STORAGE_BUCKET_ID: string;
   }
 }
 

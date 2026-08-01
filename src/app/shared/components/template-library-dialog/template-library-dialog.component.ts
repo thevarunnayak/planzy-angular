@@ -248,34 +248,23 @@ export class TemplateLibraryDialogComponent {
   templates = STARTER_BOARD_TEMPLATES;
 
   instantiateTemplate(tpl: BoardTemplate): void {
-    const createdBoard = this.boardStore.createBoard(
-      tpl.name,
-      tpl.description,
-      'folder',
-      tpl.isGroup
-    );
-
-    // Update board columns matching template
-    const colIdMap = new Map<string, string>();
     const formattedCols = tpl.columns.map((c, idx) => {
-      const colId = `col-${Date.now()}-${idx}`;
+      const slug = c.name.toLowerCase().replace(/[^a-z0-9]+/g, '_');
       return {
-        id: colId,
+        id: `col-${slug}-${idx}`,
         name: c.name,
         color: c.color,
         order: idx + 1
       };
     });
 
-    this.boardStore.boards.update(list => list.map(b => {
-      if (b.id === createdBoard.id) {
-        return {
-          ...b,
-          columns: formattedCols
-        };
-      }
-      return b;
-    }));
+    const createdBoard = this.boardStore.createBoard(
+      tpl.name,
+      tpl.description,
+      'folder',
+      tpl.isGroup,
+      formattedCols
+    );
 
     // Add starter tasks
     const firstColId = formattedCols[0].id;

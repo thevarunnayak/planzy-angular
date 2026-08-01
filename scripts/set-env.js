@@ -35,6 +35,7 @@ envFileContent.split('\n').forEach(line => {
 const appwriteEndpoint = envVars['APPWRITE_ENDPOINT'] || 'https://cloud.appwrite.io/v1';
 const appwriteProjectId = envVars['APPWRITE_PROJECT_ID'] || 'YOUR_APPWRITE_PROJECT_ID';
 const appwriteDatabaseId = envVars['APPWRITE_DATABASE_ID'] || 'planzy_db';
+const appwriteStorageBucketId = envVars['APPWRITE_STORAGE_BUCKET_ID'] || 'task_attachments';
 
 const angularJsonRaw = fs.readFileSync(angularJsonPath, 'utf8');
 const angularJson = JSON.parse(angularJsonRaw);
@@ -52,7 +53,9 @@ architect.build.options.define = architect.build.options.define || {};
 architect.build.options.define['process.env.APPWRITE_ENDPOINT'] = JSON.stringify(appwriteEndpoint);
 architect.build.options.define['process.env.APPWRITE_PROJECT_ID'] = JSON.stringify(appwriteProjectId);
 architect.build.options.define['process.env.APPWRITE_DATABASE_ID'] = JSON.stringify(appwriteDatabaseId);
+architect.build.options.define['process.env.APPWRITE_STORAGE_BUCKET_ID'] = JSON.stringify(appwriteStorageBucketId);
 
 fs.writeFileSync(angularJsonPath, JSON.stringify(angularJson, null, 2), 'utf8');
 console.log(`✔ Appwrite Project ID parsed: "${appwriteProjectId}"`);
+console.log(`✔ Appwrite Storage Bucket ID: "${appwriteStorageBucketId}"`);
 console.log('✔ Defined process.env in angular.json directly from .env.local!');

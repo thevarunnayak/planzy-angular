@@ -47,19 +47,6 @@ import { InvitationInboxDialogComponent } from '../invitation-inbox-dialog/invit
             </button>
           </div>
         </div>
-
-        <!-- User Account Header inside Drawer -->
-        @if (appwriteService.isLoggedIn()) {
-          <div class="drawer-user-card glass-card">
-            <div class="drawer-avatar-bubble">
-              {{ (appwriteService.currentUser()?.name || appwriteService.currentUser()?.email || 'U').charAt(0).toUpperCase() }}
-            </div>
-            <div class="drawer-user-info">
-              <strong class="user-display-name">{{ appwriteService.currentUser()?.name }}</strong>
-              <span class="user-display-email">{{ appwriteService.currentUser()?.email }}</span>
-            </div>
-          </div>
-        }
       </div>
 
       <!-- Scrollable Body Content inside Drawer -->
@@ -261,52 +248,6 @@ import { InvitationInboxDialogComponent } from '../invitation-inbox-dialog/invit
       align-items: center;
     }
 
-    .drawer-user-card {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 10px 12px;
-      background: var(--background);
-      border: 1.5px solid var(--border);
-      border-radius: var(--radius-md);
-    }
-
-    .drawer-avatar-bubble {
-      width: 34px;
-      height: 34px;
-      border-radius: var(--radius-full);
-      background: var(--primary);
-      color: white;
-      font-weight: 900;
-      font-size: 0.9rem;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex-shrink: 0;
-    }
-
-    .drawer-user-info {
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-
-      .user-display-name {
-        font-size: 0.86rem;
-        color: var(--text);
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-      }
-
-      .user-display-email {
-        font-size: 0.7rem;
-        color: var(--text-muted);
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-      }
-    }
-
     /* Scrollable Body Content inside Drawer */
     .drawer-scroll-body {
       flex: 1;
@@ -447,6 +388,12 @@ import { InvitationInboxDialogComponent } from '../invitation-inbox-dialog/invit
       align-items: center;
       justify-content: space-between;
       padding-right: 6px;
+    }
+
+    .boards-header-actions {
+      display: flex;
+      align-items: center;
+      gap: 4px;
     }
 
     .add-board-mini-btn {

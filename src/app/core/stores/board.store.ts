@@ -111,6 +111,31 @@ export class BoardStore {
 
             const isGroupVal = typeof doc['isGroup'] === 'boolean' ? doc['isGroup'] : false;
 
+            let columns: Column[] = [
+              { id: 'todo', name: 'To Do', color: '#3A86FF', order: 1 },
+              { id: 'in_progress', name: 'In Progress', color: '#8ECAE6', order: 2 },
+              { id: 'done', name: 'Done', color: '#38B000', order: 3 }
+            ];
+
+            const rawCols = doc['columns'] || doc['columns[]'];
+            if (rawCols) {
+              try {
+                if (Array.isArray(rawCols)) {
+                  columns = rawCols.map((c: any) => typeof c === 'string' ? JSON.parse(c) : c);
+                } else if (typeof rawCols === 'string' && rawCols.trim()) {
+                  const parsed = JSON.parse(rawCols);
+                  if (Array.isArray(parsed)) columns = parsed;
+                }
+              } catch {}
+            } else {
+              // Preserve local custom template columns for this board if present
+              const localBoards = this.storageService.getBoards();
+              const localMatch = localBoards ? localBoards.find(b => b.id === doc.$id) : null;
+              if (localMatch && localMatch.columns && localMatch.columns.length > 0) {
+                columns = localMatch.columns;
+              }
+            }
+
             return {
               id: doc.$id,
               name: doc['name'] || 'Untitled Board',
@@ -119,11 +144,7 @@ export class BoardStore {
               isGroup: isGroupVal,
               ownerId: doc['userId'] || userId,
               members,
-              columns: [
-                { id: 'todo', name: 'To Do', color: '#3A86FF', order: 1 },
-                { id: 'in_progress', name: 'In Progress', color: '#8ECAE6', order: 2 },
-                { id: 'done', name: 'Done', color: '#38B000', order: 3 }
-              ],
+              columns,
               createdAt: doc.$createdAt,
               updatedAt: doc.$updatedAt
             };
@@ -167,10 +188,19 @@ export class BoardStore {
     name: string,
     description: string = '',
     emoji: string = 'folder',
-    isGroup: boolean = false
+    isGroup: boolean = false,
+    initialColumns?: Column[]
   ): Board {
     const tempId = `board-${Date.now()}`;
     const user = this.appwriteService.currentUser();
+
+    const defaultColumns: Column[] = [
+      { id: 'todo', name: 'To Do', color: '#3A86FF', order: 1 },
+      { id: 'in_progress', name: 'In Progress', color: '#8ECAE6', order: 2 },
+      { id: 'done', name: 'Done', color: '#38B000', order: 3 }
+    ];
+
+    const targetColumns = (initialColumns && initialColumns.length > 0) ? initialColumns : defaultColumns;
 
     const initialMembers: BoardMember[] = user ? [
       {
@@ -190,11 +220,7 @@ export class BoardStore {
       isGroup,
       ownerId: user ? user.id : 'guest',
       members: initialMembers,
-      columns: [
-        { id: 'todo', name: 'To Do', color: '#3A86FF', order: 1 },
-        { id: 'in_progress', name: 'In Progress', color: '#8ECAE6', order: 2 },
-        { id: 'done', name: 'Done', color: '#38B000', order: 3 }
-      ],
+      columns: targetColumns,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
@@ -210,7 +236,8 @@ export class BoardStore {
         description,
         emoji,
         isGroup: Boolean(isGroup),
-        userId: user.id
+        userId: user.id,
+        columns: targetColumns.map(c => JSON.stringify(c))
       };
 
       if (initialMembers.length > 0) {
@@ -227,6 +254,7 @@ export class BoardStore {
         if (this.activeBoardId() === tempId) {
           this.activeBoardId.set(doc.$id);
         }
+        this.taskStore.syncBoardIdForTasks(tempId, doc.$id);
         this.notificationService.success('Cloud Synced!', `Board "${name}" saved to Appwrite Cloud.`);
       }).catch(err => {
         const fallbackPayload: any = {
@@ -248,6 +276,7 @@ export class BoardStore {
           if (this.activeBoardId() === tempId) {
             this.activeBoardId.set(doc.$id);
           }
+          this.taskStore.syncBoardIdForTasks(tempId, doc.$id);
           this.notificationService.success('Cloud Synced!', `Board "${name}" saved to Appwrite Cloud.`);
         }).catch(err2 => {
           this.notificationService.error(
@@ -427,6 +456,7 @@ export class BoardStore {
     }
 
     this.boards.update(list => list.filter(b => b.id !== boardId));
+    this.taskStore.deleteTasksForBoard(boardId);
     const remaining = this.boards();
     if (remaining.length > 0) {
       this.activeBoardId.set(remaining[0].id);

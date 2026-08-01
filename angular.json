@@ -41,7 +41,8 @@
             "define": {
               "process.env.APPWRITE_ENDPOINT": "\"https://sgp.cloud.appwrite.io/v1\"",
               "process.env.APPWRITE_PROJECT_ID": "\"6a6b908c00170e25d2d4\"",
-              "process.env.APPWRITE_DATABASE_ID": "\"6a6b912b0013f04cef1e\""
+              "process.env.APPWRITE_DATABASE_ID": "\"6a6b912b0013f04cef1e\"",
+              "process.env.APPWRITE_STORAGE_BUCKET_ID": "\"6a6dbf3f00123bfb3174\""
             }
           },
           "configurations": {

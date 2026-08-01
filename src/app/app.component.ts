@@ -10,9 +10,11 @@ import { CommandPaletteComponent } from './shared/components/command-palette/com
 import { AuthDialogComponent } from './shared/components/auth-dialog/auth-dialog.component';
 import { SplashScreenComponent } from './shared/components/splash-screen/splash-screen.component';
 import { PoppiMascotComponent } from './shared/components/poppi-mascot/poppi-mascot.component';
+import { TemplateLibraryDialogComponent } from './shared/components/template-library-dialog/template-library-dialog.component';
 import { BoardStore } from './core/stores/board.store';
 import { TaskStore } from './core/stores/task.store';
 import { AppwriteService } from './core/services/appwrite.service';
+import { signal } from '@angular/core';
 
 @Component({
   selector: 'app-root',
@@ -28,7 +30,8 @@ import { AppwriteService } from './core/services/appwrite.service';
     CommandPaletteComponent,
     AuthDialogComponent,
     SplashScreenComponent,
-    PoppiMascotComponent
+    PoppiMascotComponent,
+    TemplateLibraryDialogComponent
   ],
   template: `
     <div class="app-layout">
@@ -61,7 +64,15 @@ import { AppwriteService } from './core/services/appwrite.service';
         <app-board-dialog
           (submitted)="onBoardCreated($event)"
           (cancelled)="boardStore.closeCreateModal()"
+          (openTemplateGallery)="boardStore.closeCreateModal(); templateGalleryOpen.set(true)"
         ></app-board-dialog>
+      }
+
+      <!-- Global Starter Template Library Modal -->
+      @if (templateGalleryOpen()) {
+        <app-template-library-dialog
+          (closed)="templateGalleryOpen.set(false)"
+        ></app-template-library-dialog>
       }
 
       <!-- Global Task Creation Modal -->
@@ -104,6 +115,8 @@ export class AppComponent {
   boardStore = inject(BoardStore);
   taskStore = inject(TaskStore);
   appwriteService = inject(AppwriteService);
+
+  templateGalleryOpen = signal<boolean>(false);
 
   onBoardCreated(data: { name: string; description: string; emoji: string; isGroup: boolean }): void {
     this.boardStore.createBoard(data.name, data.description, data.emoji, data.isGroup);
