@@ -48,8 +48,16 @@ export class AppwriteService {
 
   private initAppwrite(): void {
     try {
-      const endpoint = process.env.APPWRITE_ENDPOINT || 'https://sgp.cloud.appwrite.io/v1';
+      const directEndpoint = process.env.APPWRITE_ENDPOINT || 'https://sgp.cloud.appwrite.io/v1';
       const projectId = process.env.APPWRITE_PROJECT_ID || '6a6b908c00170e25d2d4';
+
+      // On non-localhost (e.g. Vercel), proxy Appwrite through Vercel to avoid CORS
+      const isLocalhost = typeof window !== 'undefined' &&
+        (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+
+      const endpoint = isLocalhost
+        ? directEndpoint
+        : (typeof window !== 'undefined' ? window.location.origin + '/appwrite' : directEndpoint);
 
       this.client
         .setEndpoint(endpoint)
