@@ -48,7 +48,7 @@ export class AppwriteService {
 
   private initAppwrite(): void {
     try {
-      const endpoint = process.env.APPWRITE_ENDPOINT || 'https://sgp.cloud.appwrite.io/v1';
+      const endpoint = process.env.APPWRITE_ENDPOINT || 'https://cloud.appwrite.io/v1';
       const projectId = process.env.APPWRITE_PROJECT_ID || '6a6b908c00170e25d2d4';
 
       this.client
