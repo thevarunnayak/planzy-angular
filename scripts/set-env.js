@@ -32,7 +32,7 @@ envFileContent.split('\n').forEach(line => {
   }
 });
 
-const appwriteEndpoint = process.env['APPWRITE_ENDPOINT'] || envVars['APPWRITE_ENDPOINT'] || 'https://cloud.appwrite.io/v1';
+const appwriteEndpoint = process.env['APPWRITE_ENDPOINT'] || envVars['APPWRITE_ENDPOINT'] || 'https://sgp.cloud.appwrite.io/v1';
 const appwriteProjectId = process.env['APPWRITE_PROJECT_ID'] || envVars['APPWRITE_PROJECT_ID'] || '6a6b908c00170e25d2d4';
 const appwriteDatabaseId = process.env['APPWRITE_DATABASE_ID'] || envVars['APPWRITE_DATABASE_ID'] || '6a6b912b0013f04cef1e';
 const appwriteStorageBucketId = process.env['APPWRITE_STORAGE_BUCKET_ID'] || envVars['APPWRITE_STORAGE_BUCKET_ID'] || '6a6dbf3f00123bfb3174';
