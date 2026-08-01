@@ -17,7 +17,7 @@ import { IconComponent } from '../icon/icon.component';
             <app-icon name="mascot" [size]="42"></app-icon>
           </div>
 
-          <h2 class="auth-title">{{ isSignUp() ? 'Join PlanIQ Happy Workspace' : 'Welcome Back to PlanIQ' }}</h2>
+          <h2 class="auth-title">{{ isSignUp() ? 'Join Planzy Happy Workspace' : 'Welcome Back to Planzy' }}</h2>
           <p class="auth-subtitle">Sync your workspace boards & tasks with Appwrite Cloud</p>
 
           <button class="close-btn" (click)="appwriteService.closeAuthModal()">

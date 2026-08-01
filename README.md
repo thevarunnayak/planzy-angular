@@ -1,6 +1,6 @@
-# PlanIQ (Angular 19 & Appwrite Workspace)
+# Planzy (Angular 19 & Appwrite Workspace)
 
-PlanIQ is a modern, high-performance Kanban and focus workspace application built with Angular 19, Appwrite Cloud, and custom UI components.
+Planzy is a modern, high-performance Kanban and focus workspace application built with Angular 19, Appwrite Cloud, and custom UI components.
 
 ## Features
 - **Individual & Group Kanban Boards**

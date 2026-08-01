@@ -1,5 +1,5 @@
 import { Injectable, inject, signal, computed, effect } from '@angular/core';
-import { Task, CreateTaskDto, UpdateTaskDto, TaskAssignee, TaskComment } from '../models/task.model';
+import { Task, CreateTaskDto, UpdateTaskDto, TaskAssignee, TaskComment, TaskAttachment } from '../models/task.model';
 import { StorageService } from '../services/storage.service';
 import { SoundService } from '../services/sound.service';
 import { AppwriteService } from '../services/appwrite.service';
@@ -162,6 +162,23 @@ export class TaskStore {
             }
           } catch {}
 
+          let attachments: TaskAttachment[] = [];
+          try {
+            const rawAtt = doc['attachments'] || doc['attachments[]'];
+            if (Array.isArray(rawAtt)) {
+              rawAtt.forEach((a: any) => {
+                try {
+                  const parsed = typeof a === 'string' ? JSON.parse(a) : a;
+                  if (parsed && typeof parsed === 'object') {
+                    attachments.push(parsed);
+                  }
+                } catch {}
+              });
+            } else if (typeof rawAtt === 'string' && rawAtt.trim()) {
+              attachments = JSON.parse(rawAtt);
+            }
+          } catch {}
+
           return {
             id: doc.$id,
             boardId: doc['boardId'] || '',
@@ -175,6 +192,7 @@ export class TaskStore {
             labels: parsedLabels,
             assignee,
             comments,
+            attachments,
             subtasks: [],
             history: [],
             order: idx + 1,
@@ -225,6 +243,7 @@ export class TaskStore {
       assignee: dto.assignee,
       subtasks: [],
       comments: [],
+      attachments: dto.attachments || [],
       history: [],
       order: activeTasks.length + 1,
       sticker: dto.sticker || 'bookmark',

@@ -1,5 +1,5 @@
 import { Injectable, signal, computed, inject } from '@angular/core';
-import { Client, Account, Databases, ID, Query, Models } from 'appwrite';
+import { Client, Account, Databases, Storage, ID, Query, Models } from 'appwrite';
 import { NotificationService } from './notification.service';
 import { BoardInvitation, InvitationRole } from '../models/invitation.model';
 
@@ -19,6 +19,9 @@ export class AppwriteService {
   client = new Client();
   account = new Account(this.client);
   databases = new Databases(this.client);
+  storage = new Storage(this.client);
+
+  readonly storageBucketId = 'task_attachments';
 
   currentUser = signal<User | null>(null);
   authModalOpen = signal<boolean>(false);
@@ -95,7 +98,7 @@ export class AppwriteService {
     try {
       await this.account.create(ID.unique(), email, pass, name);
       await this.login(email, pass);
-      this.notificationService.success('Welcome to PlanIQ!', `Account created for ${name}`);
+      this.notificationService.success('Welcome to Planzy!', `Account created for ${name}`);
       return true;
     } catch (err: any) {
       this.handleAppwriteError(err, 'Sign Up Failed');
@@ -293,5 +296,41 @@ export class AppwriteService {
     } else {
       this.notificationService.error(defaultTitle, msg || 'Could not complete request.');
     }
+  }
+
+  async uploadTaskAttachmentFile(file: File): Promise<{ url: string; fileId: string }> {
+    try {
+      const uploaded = await this.storage.createFile(
+        this.storageBucketId,
+        ID.unique(),
+        file
+      );
+      const endpoint = process.env.APPWRITE_ENDPOINT || 'https://sgp.cloud.appwrite.io/v1';
+      const projectId = process.env.APPWRITE_PROJECT_ID || '6a6b908c00170e25d2d4';
+      const url = `${endpoint}/storage/buckets/${this.storageBucketId}/files/${uploaded.$id}/view?project=${projectId}`;
+      return { url, fileId: uploaded.$id };
+    } catch (err: any) {
+      console.warn('Appwrite Storage upload fallback to Data URL:', err);
+      const dataUrl = await this.readFileAsDataUrl(file);
+      return { url: dataUrl, fileId: `local-${Date.now()}` };
+    }
+  }
+
+  async deleteTaskAttachmentFile(fileId: string): Promise<void> {
+    if (!fileId || fileId.startsWith('local-')) return;
+    try {
+      await this.storage.deleteFile(this.storageBucketId, fileId);
+    } catch (err: any) {
+      console.warn('Appwrite Storage delete file warning:', err);
+    }
+  }
+
+  private readFileAsDataUrl(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = error => reject(error);
+      reader.readAsDataURL(file);
+    });
   }
 }

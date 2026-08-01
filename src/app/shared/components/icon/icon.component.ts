@@ -50,7 +50,7 @@ export type IconName =
     @if (name === 'mascot') {
       <img
         src="assets/images/planzy_mascot.png"
-        alt="PlanIQ Mascot"
+        alt="Planzy Mascot"
         [style.width.px]="size"
         [style.height.px]="size"
         class="mascot-img"

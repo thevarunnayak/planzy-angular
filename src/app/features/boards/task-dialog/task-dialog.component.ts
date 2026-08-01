@@ -1,7 +1,7 @@
 import { Component, Input, Output, EventEmitter, inject, OnInit, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Task, TaskAssignee, TaskComment, TaskPriority } from '../../../core/models/task.model';
+import { Task, TaskAssignee, TaskComment, TaskPriority, TaskAttachment } from '../../../core/models/task.model';
 import { TaskStore } from '../../../core/stores/task.store';
 import { BoardStore } from '../../../core/stores/board.store';
 import { AppwriteService } from '../../../core/services/appwrite.service';
@@ -162,6 +162,73 @@ import { CustomSingleSelectComponent, SingleSelectOption } from '../../../shared
                 name="labelsInput"
               />
             </div>
+
+            <!-- Task Attachments Section -->
+            <div class="form-group attachments-section">
+              <div class="attachments-header">
+                <label>Task Attachments ({{ attachments.length }})</label>
+                <button type="button" class="upload-link-btn" (click)="attachFileInput.click()">
+                  <app-icon name="plus" [size]="14"></app-icon>
+                  <span>Upload File</span>
+                </button>
+              </div>
+
+              <input
+                #attachFileInput
+                type="file"
+                class="hidden-file-input"
+                (change)="onAttachmentSelected($event)"
+              />
+
+              @if (attachments.length > 0) {
+                <div class="attachments-grid">
+                  @for (att of attachments; track att.id) {
+                    <div class="attachment-item-card glass-card">
+                      @if (att.type && att.type.startsWith('image/')) {
+                        <div class="att-img-thumb" (click)="openImagePreview(att.url)">
+                          <img [src]="att.url" [alt]="att.name" />
+                        </div>
+                      } @else {
+                        <div class="att-icon-box">
+                          <app-icon name="bookmark" [size]="20"></app-icon>
+                        </div>
+                      }
+
+                      <div class="att-info">
+                        <strong class="att-name" [title]="att.name">{{ att.name }}</strong>
+                        <span class="att-size">{{ (att.size / 1024) | number:'1.0-1' }} KB</span>
+                      </div>
+
+                      <div class="att-actions">
+                        <a [href]="att.url" target="_blank" download class="icon-mini-btn" title="Download File">
+                          <app-icon name="star" [size]="14"></app-icon>
+                        </a>
+                        <button type="button" class="icon-mini-btn danger" (click)="removeAttachment(att.id)" title="Remove File">
+                          <app-icon name="x" [size]="14"></app-icon>
+                        </button>
+                      </div>
+                    </div>
+                  }
+                </div>
+              } @else {
+                <div class="empty-attachments-box" (click)="attachFileInput.click()">
+                  <app-icon name="plus" [size]="18"></app-icon>
+                  <span>No attachments added. Click to upload files.</span>
+                </div>
+              }
+            </div>
+
+            <!-- Image Lightbox Modal -->
+            @if (previewImageUrl(); as imgUrl) {
+              <div class="lightbox-overlay fade-in" (click)="previewImageUrl.set(null)">
+                <div class="lightbox-card pop-in" (click)="$event.stopPropagation()">
+                  <button class="lightbox-close-btn" (click)="previewImageUrl.set(null)">
+                    <app-icon name="x" [size]="18"></app-icon>
+                  </button>
+                  <img [src]="imgUrl" alt="Attachment Preview" />
+                </div>
+              </div>
+            }
 
             <!-- Task Activity & Comments Section -->
             @if (isEditMode && task) {
@@ -620,6 +687,7 @@ export class TaskDialogComponent implements OnInit {
       this.assignee = this.task.assignee;
       this.selectedAssigneeUserId = this.task.assignee?.userId || '';
       this.comments = this.task.comments || [];
+      this.attachments = this.task.attachments || [];
     } else {
       const activeBoard = this.boardStore.activeBoard();
       this.targetBoardId = activeBoard ? activeBoard.id : (boards.length > 0 ? boards[0].id : '');
@@ -628,6 +696,42 @@ export class TaskDialogComponent implements OnInit {
         this.columnId = board.columns[0].id;
       }
     }
+  }
+
+  attachments: TaskAttachment[] = [];
+  previewImageUrl = signal<string | null>(null);
+
+  async onAttachmentSelected(event: Event): Promise<void> {
+    const input = event.target as HTMLInputElement;
+    if (!input.files || input.files.length === 0) return;
+
+    const file = input.files[0];
+    const { url, fileId } = await this.appwriteService.uploadTaskAttachmentFile(file);
+
+    const newAttachment: TaskAttachment = {
+      id: `att-${Date.now()}`,
+      name: file.name,
+      size: file.size,
+      type: file.type,
+      url,
+      fileId,
+      createdAt: new Date().toISOString()
+    };
+
+    this.attachments = [...this.attachments, newAttachment];
+    input.value = '';
+  }
+
+  async removeAttachment(attachmentId: string): Promise<void> {
+    const att = this.attachments.find(a => a.id === attachmentId);
+    if (att?.fileId) {
+      await this.appwriteService.deleteTaskAttachmentFile(att.fileId);
+    }
+    this.attachments = this.attachments.filter(a => a.id !== attachmentId);
+  }
+
+  openImagePreview(url: string): void {
+    this.previewImageUrl.set(url);
   }
 
   onAssigneeSelect(userId: string): void {
@@ -690,7 +794,8 @@ export class TaskDialogComponent implements OnInit {
         sticker: this.sticker,
         labels,
         assignee: this.assignee,
-        comments: this.comments
+        comments: this.comments,
+        attachments: this.attachments
       });
     } else {
       this.taskStore.createTask({
@@ -703,7 +808,9 @@ export class TaskDialogComponent implements OnInit {
         estimatedHours: this.estimatedHours,
         sticker: this.sticker,
         labels,
-        assignee: this.assignee
+        assignee: this.assignee,
+        comments: this.comments,
+        attachments: this.attachments
       });
     }
 

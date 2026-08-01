@@ -16,7 +16,7 @@ import { IconComponent } from '../../shared/components/icon/icon.component';
           <app-icon name="settings" [size]="28"></app-icon>
           <h2>Application Settings</h2>
         </div>
-        <p>Customize your PlanIQ experience, switch color palettes, and toggle dark/light mode</p>
+        <p>Customize your Planzy experience, switch color palettes, and toggle dark/light mode</p>
       </div>
 
       <!-- Color Palette Selector Card -->
@@ -35,7 +35,7 @@ import { IconComponent } from '../../shared/components/icon/icon.component';
             (click)="selectTheme('blue')"
           >
             <span class="theme-swatch blue-swatch"></span>
-            <strong>PlanIQ Blue</strong>
+            <strong>Planzy Blue</strong>
             <span>Korean Blue (Default)</span>
           </button>
 

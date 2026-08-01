@@ -91,6 +91,14 @@ import { ButtonComponent } from '../button/button.component';
             ></textarea>
           </div>
 
+          <div class="template-shortcut-banner">
+            <span>Want a pre-built workflow?</span>
+            <button type="button" class="link-btn" (click)="openTemplateGallery.emit()">
+              <app-icon name="sparkles" [size]="14"></app-icon>
+              <span>Explore Starter Templates</span>
+            </button>
+          </div>
+
           <div class="modal-footer">
             <app-button variant="secondary" (btnClick)="cancelled.emit()">Cancel</app-button>
             <app-button type="submit" [disabled]="!boardName.trim()">
@@ -241,6 +249,31 @@ import { ButtonComponent } from '../button/button.component';
       }
     }
 
+    .template-shortcut-banner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 14px;
+      background: var(--background);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-md);
+      font-size: 0.8rem;
+      color: var(--text-muted);
+
+      .link-btn {
+        background: transparent;
+        border: none;
+        color: var(--primary);
+        font-weight: 800;
+        font-size: 0.82rem;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        &:hover { text-decoration: underline; }
+      }
+    }
+
     .modal-footer {
       display: flex;
       align-items: center;
@@ -258,6 +291,7 @@ export class BoardDialogComponent implements OnInit {
 
   @Output() submitted = new EventEmitter<{ name: string; description: string; emoji: string; isGroup: boolean }>();
   @Output() cancelled = new EventEmitter<void>();
+  @Output() openTemplateGallery = new EventEmitter<void>();
 
   boardName = '';
   boardDescription = '';

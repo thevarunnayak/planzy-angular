@@ -98,6 +98,13 @@ import { IconComponent } from '../../../shared/components/icon/icon.component';
             </div>
           }
 
+          @if (task.attachments && task.attachments.length > 0) {
+            <span class="meta-item attachment-pill" [title]="task.attachments.length + ' attachments'">
+              <app-icon name="bookmark" [size]="12"></app-icon>
+              <span>{{ task.attachments.length }}</span>
+            </span>
+          }
+
           <button
             type="button"
             class="comment-badge-btn"

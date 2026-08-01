@@ -15,7 +15,7 @@ import { IconComponent } from '../icon/icon.component';
           </div>
 
           <div class="brand-title-wrap">
-            <h1 class="splash-brand-name">PlanIQ</h1>
+            <h1 class="splash-brand-name">Planzy</h1>
             <p class="splash-tagline">Plan Happy. Do More.</p>
           </div>
 

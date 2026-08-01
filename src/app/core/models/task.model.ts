@@ -30,6 +30,16 @@ export interface TaskHistoryItem {
   timestamp: string;
 }
 
+export interface TaskAttachment {
+  id: string;
+  name: string;
+  size: number;
+  type: string;
+  url: string;
+  fileId?: string;
+  createdAt: string;
+}
+
 export interface Task {
   id: string;
   boardId: string;
@@ -40,6 +50,7 @@ export interface Task {
   labels: string[];
   subtasks: Subtask[];
   comments: TaskComment[];
+  attachments?: TaskAttachment[];
   assignee?: TaskAssignee;
   history?: TaskHistoryItem[];
   dueDate?: string;
@@ -76,6 +87,7 @@ export interface CreateTaskDto {
   labels?: string[];
   assignee?: TaskAssignee;
   comments?: TaskComment[];
+  attachments?: TaskAttachment[];
   sticker?: string;
 }
 
@@ -90,6 +102,7 @@ export interface UpdateTaskDto {
   labels?: string[];
   assignee?: TaskAssignee;
   comments?: TaskComment[];
+  attachments?: TaskAttachment[];
   isFavorite?: boolean;
   sticker?: string;
 }

@@ -5,11 +5,21 @@ import { BoardStore } from '../../../core/stores/board.store';
 import { TaskStore } from '../../../core/stores/task.store';
 import { IconComponent } from '../../../shared/components/icon/icon.component';
 import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialog/confirm-dialog.component';
+import { BoardDialogComponent } from '../../../shared/components/board-dialog/board-dialog.component';
+import { TemplateLibraryDialogComponent } from '../../../shared/components/template-library-dialog/template-library-dialog.component';
+import { ImportBoardDialogComponent } from '../../../shared/components/import-board-dialog/import-board-dialog.component';
 
 @Component({
   selector: 'app-board-list',
   standalone: true,
-  imports: [CommonModule, IconComponent, ConfirmDialogComponent],
+  imports: [
+    CommonModule,
+    IconComponent,
+    ConfirmDialogComponent,
+    BoardDialogComponent,
+    TemplateLibraryDialogComponent,
+    ImportBoardDialogComponent
+  ],
   template: `
     <div class="boards-page-view">
       <!-- Sticky Header Bar -->
@@ -22,10 +32,22 @@ import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialo
           </div>
         </div>
 
-        <button class="jelly-btn" (click)="openCreateBoardModal()">
-          <app-icon name="plus" [size]="16"></app-icon>
-          <span>New Board</span>
-        </button>
+        <div class="header-right-actions">
+          <button class="jelly-btn secondary" (click)="templateGalleryOpen.set(true)">
+            <app-icon name="sparkles" [size]="16"></app-icon>
+            <span class="hide-on-mobile">Starter Templates</span>
+          </button>
+
+          <button class="jelly-btn secondary" (click)="importModalOpen.set(true)">
+            <app-icon name="folder" [size]="16"></app-icon>
+            <span class="hide-on-mobile">Import Backup</span>
+          </button>
+
+          <button class="jelly-btn" (click)="openCreateBoardModal()">
+            <app-icon name="plus" [size]="16"></app-icon>
+            <span>New Board</span>
+          </button>
+        </div>
       </div>
 
       <!-- Boards Grid or Empty State -->
@@ -70,13 +92,42 @@ import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialo
               <app-icon name="kanban" [size]="48"></app-icon>
             </div>
             <h3>No Boards Found</h3>
-            <p>Your workspace is currently empty. Click the button below to create your first Kanban board!</p>
-            <button class="jelly-btn" (click)="openCreateBoardModal()">
-              <app-icon name="plus" [size]="16"></app-icon>
-              <span>Create Board</span>
-            </button>
+            <p>Your workspace is currently empty. Click the button below to create your first Kanban board or pick a starter template!</p>
+            <div class="empty-actions-row">
+              <button class="jelly-btn secondary" (click)="templateGalleryOpen.set(true)">
+                <app-icon name="sparkles" [size]="16"></app-icon>
+                <span>Starter Templates</span>
+              </button>
+              <button class="jelly-btn" (click)="openCreateBoardModal()">
+                <app-icon name="plus" [size]="16"></app-icon>
+                <span>Create Board</span>
+              </button>
+            </div>
           </div>
         </div>
+      }
+
+      <!-- Create Board Modal -->
+      @if (boardStore.createModalOpen()) {
+        <app-board-dialog
+          (submitted)="onBoardSubmitted($event)"
+          (cancelled)="boardStore.closeCreateModal()"
+          (openTemplateGallery)="boardStore.closeCreateModal(); templateGalleryOpen.set(true)"
+        ></app-board-dialog>
+      }
+
+      <!-- Starter Template Gallery Modal -->
+      @if (templateGalleryOpen()) {
+        <app-template-library-dialog
+          (closed)="templateGalleryOpen.set(false)"
+        ></app-template-library-dialog>
+      }
+
+      <!-- Import Board Backup Modal -->
+      @if (importModalOpen()) {
+        <app-import-board-dialog
+          (closed)="importModalOpen.set(false)"
+        ></app-import-board-dialog>
       }
 
       <!-- Custom Confirmation Modal for Deleting Board -->
@@ -251,6 +302,18 @@ import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialo
       p { font-size: 0.88rem; color: var(--text-muted); line-height: 1.5; }
     }
 
+    .header-right-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .empty-actions-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
     /* Mobile Responsive Header Layout (< 768px) */
     @media (max-width: 768px) {
       .boards-page-view {
@@ -278,9 +341,15 @@ import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialo
           font-size: 0.8rem;
         }
 
-        .jelly-btn {
+        .header-right-actions {
           width: 100%;
-          justify-content: center;
+          flex-direction: column;
+          align-items: stretch;
+
+          .jelly-btn {
+            width: 100%;
+            justify-content: center;
+          }
         }
       }
     }
@@ -292,6 +361,8 @@ export class BoardListComponent {
   private router = inject(Router);
 
   targetDeleteBoardId = signal<string | null>(null);
+  templateGalleryOpen = signal<boolean>(false);
+  importModalOpen = signal<boolean>(false);
 
   getTaskCountForBoard(boardId: string): number {
     return this.taskStore.tasks().filter(t => t.boardId === boardId).length;
@@ -304,6 +375,14 @@ export class BoardListComponent {
 
   openCreateBoardModal(): void {
     this.boardStore.openCreateModal();
+  }
+
+  onBoardSubmitted(dto: { name: string; description: string; emoji: string; isGroup: boolean }): void {
+    const created = this.boardStore.createBoard(dto.name, dto.description, dto.emoji, dto.isGroup);
+    this.boardStore.closeCreateModal();
+    if (created) {
+      this.openBoard(created.id);
+    }
   }
 
   duplicateBoard(event: MouseEvent, boardId: string): void {

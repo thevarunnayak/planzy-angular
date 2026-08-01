@@ -19,6 +19,8 @@ import { ButtonComponent } from '../../../shared/components/button/button.compon
 import { BadgeComponent } from '../../../shared/components/badge/badge.component';
 
 import { TaskCommentsModalComponent } from '../../../shared/components/task-comments-modal/task-comments-modal.component';
+import { ImportBoardDialogComponent } from '../../../shared/components/import-board-dialog/import-board-dialog.component';
+import { ExportImportService } from '../../../core/services/export-import.service';
 
 @Component({
   selector: 'app-board-detail',
@@ -33,6 +35,7 @@ import { TaskCommentsModalComponent } from '../../../shared/components/task-comm
     ConfirmDialogComponent,
     BoardMembersDialogComponent,
     TaskCommentsModalComponent,
+    ImportBoardDialogComponent,
     CustomMultiSelectComponent,
     CustomSortSelectComponent,
     TooltipDirective,
@@ -100,6 +103,23 @@ import { TaskCommentsModalComponent } from '../../../shared/components/task-comm
                     <button class="dropdown-item" (click)="duplicateBoard(board.id); boardMenuOpen.set(false)">
                       <app-icon name="copy" [size]="14"></app-icon>
                       <span>Duplicate Board</span>
+                    </button>
+
+                    <div class="dropdown-divider"></div>
+
+                    <button class="dropdown-item" (click)="exportImportService.exportBoardToJson(board.id); boardMenuOpen.set(false)">
+                      <app-icon name="folder" [size]="14"></app-icon>
+                      <span>Export JSON Backup</span>
+                    </button>
+
+                    <button class="dropdown-item" (click)="exportImportService.exportBoardToCsv(board.id); boardMenuOpen.set(false)">
+                      <app-icon name="dashboard" [size]="14"></app-icon>
+                      <span>Export CSV Spreadsheet</span>
+                    </button>
+
+                    <button class="dropdown-item" (click)="importModalOpen.set(true); boardMenuOpen.set(false)">
+                      <app-icon name="plus" [size]="14"></app-icon>
+                      <span>Import Board Backup</span>
                     </button>
 
                     @if (boardStore.isOwner()) {
@@ -217,6 +237,13 @@ import { TaskCommentsModalComponent } from '../../../shared/components/task-comm
             (confirmed)="deleteBoardConfirmed()"
             (cancelled)="confirmDeleteBoardId.set(null)"
           ></app-confirm-dialog>
+        }
+
+        <!-- Import Board Backup Modal -->
+        @if (importModalOpen()) {
+          <app-import-board-dialog
+            (closed)="importModalOpen.set(false)"
+          ></app-import-board-dialog>
         }
       </div>
     } @else {
@@ -547,12 +574,14 @@ import { TaskCommentsModalComponent } from '../../../shared/components/task-comm
 export class BoardDetailComponent implements OnInit {
   boardStore = inject(BoardStore);
   taskStore = inject(TaskStore);
+  exportImportService = inject(ExportImportService);
   private route = inject(ActivatedRoute);
 
   dialogOpen = signal(false);
   columnModalOpen = signal(false);
   membersModalOpen = signal(false);
   boardMenuOpen = signal(false);
+  importModalOpen = signal(false);
   selectedTaskForEdit = signal<Task | null>(null);
   confirmDeleteBoardId = signal<string | null>(null);
   commentsTask = signal<Task | null>(null);

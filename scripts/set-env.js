@@ -34,12 +34,12 @@ envFileContent.split('\n').forEach(line => {
 
 const appwriteEndpoint = envVars['APPWRITE_ENDPOINT'] || 'https://cloud.appwrite.io/v1';
 const appwriteProjectId = envVars['APPWRITE_PROJECT_ID'] || 'YOUR_APPWRITE_PROJECT_ID';
-const appwriteDatabaseId = envVars['APPWRITE_DATABASE_ID'] || 'planiq_db';
+const appwriteDatabaseId = envVars['APPWRITE_DATABASE_ID'] || 'planzy_db';
 
 const angularJsonRaw = fs.readFileSync(angularJsonPath, 'utf8');
 const angularJson = JSON.parse(angularJsonRaw);
 
-const projectName = Object.keys(angularJson.projects)[0] || 'planiq-angular';
+const projectName = Object.keys(angularJson.projects)[0] || 'planzy-angular';
 const architect = angularJson.projects[projectName].architect;
 
 // Clean up test options

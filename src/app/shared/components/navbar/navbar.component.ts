@@ -32,7 +32,7 @@ import { InvitationInboxDialogComponent } from '../invitation-inbox-dialog/invit
             <app-icon name="mascot" [size]="38"></app-icon>
           </div>
           <div class="brand-text">
-            <span class="brand-name">PlanIQ</span>
+            <span class="brand-name">Planzy</span>
             <span class="brand-tagline hide-on-mobile">Plan Happy. Do More.</span>
           </div>
         </a>
