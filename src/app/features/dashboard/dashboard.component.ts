@@ -36,22 +36,29 @@ import { IconComponent } from '../../shared/components/icon/icon.component';
             <span class="metric-label">Productivity Score</span>
           </div>
 
-          <div class="gauge-container">
-            <svg width="120" height="120" viewBox="0 0 120 120">
-              <circle cx="60" cy="60" r="50" fill="none" stroke="var(--background)" stroke-width="12"/>
-              <circle
-                cx="60" cy="60" r="50" fill="none"
-                stroke="var(--primary)"
-                stroke-width="12"
-                stroke-linecap="round"
-                [attr.stroke-dasharray]="314"
-                [attr.stroke-dashoffset]="314 - (314 * dashboardStore.stats().productivityScore) / 100"
-                transform="rotate(-90 60 60)"
-                style="transition: stroke-dashoffset 0.8s ease;"
-              />
-            </svg>
-            <span class="score-text">{{ dashboardStore.stats().productivityScore }}%</span>
-          </div>
+          @if (dashboardStore.stats().totalTasks === 0) {
+            <div class="gauge-empty-state">
+              <app-icon name="plus-circle" [size]="32"></app-icon>
+              <p>Add tasks to start tracking your productivity!</p>
+            </div>
+          } @else {
+            <div class="gauge-container">
+              <svg width="120" height="120" viewBox="0 0 120 120">
+                <circle cx="60" cy="60" r="50" fill="none" stroke="var(--background)" stroke-width="12"/>
+                <circle
+                  cx="60" cy="60" r="50" fill="none"
+                  stroke="var(--primary)"
+                  stroke-width="12"
+                  stroke-linecap="round"
+                  [attr.stroke-dasharray]="314"
+                  [attr.stroke-dashoffset]="314 - (314 * dashboardStore.stats().productivityScore) / 100"
+                  transform="rotate(-90 60 60)"
+                  style="transition: stroke-dashoffset 0.8s ease;"
+                />
+              </svg>
+              <span class="score-text">{{ dashboardStore.stats().productivityScore }}%</span>
+            </div>
+          }
         </div>
 
         <!-- Task Completion Counter Card -->
@@ -208,6 +215,29 @@ import { IconComponent } from '../../shared/components/icon/icon.component';
       align-items: center;
       justify-content: center;
     }
+
+    .gauge-empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 12px 8px;
+      text-align: center;
+      color: var(--text-muted, #888);
+
+      app-icon {
+        opacity: 0.45;
+      }
+
+      p {
+        font-size: 0.75rem;
+        line-height: 1.4;
+        margin: 0;
+        opacity: 0.7;
+      }
+    }
+
 
     .score-text {
       position: absolute;

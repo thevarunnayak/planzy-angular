@@ -32,7 +32,7 @@ export class DashboardStore {
 
     const productivityScore = totalTasks > 0
       ? Math.round((completedTasks / totalTasks) * 100)
-      : 100;
+      : 0;
 
     const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     const weeklyActivity = days.map((day, idx) => {
