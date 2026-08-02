@@ -38,7 +38,7 @@ import { IconComponent } from '../../shared/components/icon/icon.component';
 
           @if (dashboardStore.stats().totalTasks === 0) {
             <div class="gauge-empty-state">
-              <app-icon name="plus-circle" [size]="32"></app-icon>
+              <app-icon name="plus" [size]="32"></app-icon>
               <p>Add tasks to start tracking your productivity!</p>
             </div>
           } @else {
