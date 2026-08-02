@@ -295,19 +295,25 @@ export class AppwriteService {
 
   private handleAppwriteError(err: any, defaultTitle: string): void {
     const msg = err?.message || '';
-    if (msg.includes('project') || err?.type === 'project_not_found') {
+    const type = err?.type || '';
+    const code = err?.code;
+
+    console.error('[Planzy] Appwrite error:', { type, code, msg, err });
+
+    if (type === 'project_not_found') {
       this.notificationService.error(
         'Invalid Appwrite Project ID',
         'Check your Project ID in .env.local or add your Web Platform in Appwrite Console.'
       );
-    } else if (msg.includes('CORS') || err?.code === 0 || err?.type === 'general_argument_invalid') {
+    } else if (msg.includes('CORS') || code === 0) {
       const currentHost = typeof window !== 'undefined' ? window.location.hostname : 'your Vercel domain';
       this.notificationService.error(
         'Appwrite CORS Origin Blocked',
         `Add "${currentHost}" in Appwrite Console -> Overview -> Web Platforms -> + Add Platform -> Web App.`
       );
     } else {
-      this.notificationService.error(defaultTitle, msg || 'Could not complete request.');
+      // Show the real Appwrite error so we can diagnose it
+      this.notificationService.error(defaultTitle, `${msg || 'Could not complete request.'} (code: ${code}, type: ${type})`);
     }
   }
 
