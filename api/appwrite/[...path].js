@@ -1,9 +1,9 @@
 // Vercel serverless proxy for Appwrite API.
-// Uses raw body (no JSON re-serialization) and skips cookies to avoid stale session conflicts.
+// Extracts path from req.url to avoid Vercel routes not populating req.query.path.
 
 module.exports.config = {
   api: {
-    bodyParser: false, // Get raw bytes — avoids double-stringification
+    bodyParser: false,
   }
 };
 
@@ -18,27 +18,24 @@ module.exports = async function handler(req, res) {
     return;
   }
 
-  // Read raw request body
+  // Extract Appwrite path from the full request URL
+  // e.g. req.url = /api/appwrite/account/sessions/email?foo=bar
+  //      → apiPath = account/sessions/email
+  const fullUrl = new URL(req.url, 'http://localhost');
+  const apiPath = fullUrl.pathname.replace(/^\/api\/appwrite\/?/, '');
+
+  // Forward query string params (excluding the internal path param)
+  const qs = fullUrl.search || '';
+  const targetUrl = `https://sgp.cloud.appwrite.io/v1/${apiPath}${qs}`;
+
+  // Read raw request body (bodyParser is disabled)
   const chunks = [];
   for await (const chunk of req) {
     chunks.push(chunk);
   }
   const rawBody = Buffer.concat(chunks);
 
-  // Build Appwrite target URL
-  const pathParts = req.query.path || [];
-  const path = Array.isArray(pathParts) ? pathParts.join('/') : String(pathParts);
-
-  const queryParams = new URLSearchParams();
-  for (const [key, value] of Object.entries(req.query)) {
-    if (key === 'path') continue;
-    if (Array.isArray(value)) value.forEach(v => queryParams.append(key, v));
-    else queryParams.append(key, value);
-  }
-  const qs = queryParams.toString();
-  const targetUrl = `https://sgp.cloud.appwrite.io/v1/${path}${qs ? '?' + qs : ''}`;
-
-  // Build forwarded headers — skip hop-by-hop and cookies (stale cookies cause 403)
+  // Build forwarded headers — skip hop-by-hop and cookies
   const skipHeaders = new Set(['host', 'connection', 'transfer-encoding', 'keep-alive', 'cookie', 'set-cookie']);
   const forwardHeaders = {};
   for (const [key, value] of Object.entries(req.headers)) {
@@ -50,7 +47,6 @@ module.exports = async function handler(req, res) {
   // Set correct origin so Appwrite platform validation passes
   forwardHeaders['origin'] = 'https://planzylab.vercel.app';
   forwardHeaders['referer'] = 'https://planzylab.vercel.app/';
-
   if (rawBody.length > 0) {
     forwardHeaders['content-length'] = String(rawBody.length);
   }
@@ -66,22 +62,20 @@ module.exports = async function handler(req, res) {
   try {
     const appwriteResponse = await fetch(targetUrl, fetchOptions);
 
-    // Forward Appwrite response headers back to browser
+    // Forward Appwrite response headers
     const skipResponseHeaders = new Set(['transfer-encoding', 'connection', 'content-encoding']);
     for (const [key, value] of appwriteResponse.headers.entries()) {
       if (!skipResponseHeaders.has(key.toLowerCase())) {
         res.setHeader(key, value);
       }
     }
-
-    // CORS headers for the browser
     res.setHeader('Access-Control-Allow-Origin', 'https://planzylab.vercel.app');
     res.setHeader('Access-Control-Allow-Credentials', 'true');
 
     const body = await appwriteResponse.arrayBuffer();
     res.status(appwriteResponse.status).end(Buffer.from(body));
   } catch (error) {
-    console.error('[Appwrite Proxy] Fetch error:', error);
+    console.error('[Appwrite Proxy] Error:', error);
     res.status(502).json({ error: 'Proxy error', message: error.message });
   }
 };
