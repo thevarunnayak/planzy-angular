@@ -72,6 +72,7 @@ import { signal } from '@angular/core';
       @if (templateGalleryOpen()) {
         <app-template-library-dialog
           (closed)="templateGalleryOpen.set(false)"
+          (backToCreate)="templateGalleryOpen.set(false); boardStore.openCreateModal()"
         ></app-template-library-dialog>
       }
 

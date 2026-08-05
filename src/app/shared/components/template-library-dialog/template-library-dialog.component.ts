@@ -18,7 +18,10 @@ import { BadgeComponent } from '../badge/badge.component';
         <!-- Modal Header -->
         <div class="modal-header">
           <div class="header-title">
-            <app-icon name="sparkles" [size]="22"></app-icon>
+            <button class="back-btn" (click)="backToCreate.emit(); closed.emit()" title="Back to Custom Board Creation">
+              <app-icon name="chevron-left" [size]="16"></app-icon>
+            </button>
+            <app-icon name="sparkles" [size]="22" class="sparkles-icon"></app-icon>
             <div>
               <h3>Starter Template Gallery</h3>
               <p class="header-sub">Launch pre-configured boards with custom workflow columns and starter tasks</p>
@@ -106,15 +109,19 @@ import { BadgeComponent } from '../badge/badge.component';
     .modal-header {
       padding: 18px 24px;
       display: flex;
-      align-items: flex-start;
+      align-items: center;
       justify-content: space-between;
       border-bottom: 1.5px solid var(--border);
 
       .header-title {
         display: flex;
-        align-items: flex-start;
+        align-items: center;
         gap: 12px;
         color: var(--primary);
+
+        .sparkles-icon {
+          flex-shrink: 0;
+        }
 
         h3 {
           font-size: 1.25rem;
@@ -130,6 +137,28 @@ import { BadgeComponent } from '../badge/badge.component';
         }
       }
 
+      .back-btn {
+        background: var(--surface-hover);
+        border: 1.5px solid var(--border);
+        color: var(--text-muted);
+        width: 32px;
+        height: 32px;
+        border-radius: var(--radius-sm);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s ease;
+        flex-shrink: 0;
+
+        &:hover {
+          color: var(--primary);
+          border-color: var(--primary);
+          background: var(--primary-light);
+          transform: translateX(-2px);
+        }
+      }
+
       .close-btn {
         background: transparent;
         border: none;
@@ -138,6 +167,7 @@ import { BadgeComponent } from '../badge/badge.component';
         &:hover { color: var(--text); }
       }
     }
+
 
     .modal-body {
       padding: 24px;
@@ -240,6 +270,8 @@ import { BadgeComponent } from '../badge/badge.component';
 export class TemplateLibraryDialogComponent {
   @Output() closed = new EventEmitter<void>();
   @Output() instantiated = new EventEmitter<string>();
+  @Output() backToCreate = new EventEmitter<void>();
+
 
   private boardStore = inject(BoardStore);
   private taskStore = inject(TaskStore);

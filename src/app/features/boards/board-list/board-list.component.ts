@@ -120,6 +120,7 @@ import { ImportBoardDialogComponent } from '../../../shared/components/import-bo
       @if (templateGalleryOpen()) {
         <app-template-library-dialog
           (closed)="templateGalleryOpen.set(false)"
+          (backToCreate)="templateGalleryOpen.set(false); boardStore.openCreateModal()"
         ></app-template-library-dialog>
       }
 
