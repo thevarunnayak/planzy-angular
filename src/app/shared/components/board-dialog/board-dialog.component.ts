@@ -91,53 +91,18 @@ import { ButtonComponent } from '../button/button.component';
             ></textarea>
           </div>
 
-          <!-- Starter Template Presets (Create Mode) -->
+          <!-- Starter Template Gallery Button (Create Mode) -->
           @if (!initialName) {
             <div class="form-group">
-              <div class="template-header-label">
-                <label>Start with a Premade Template (Optional)</label>
-                <button type="button" class="explore-tpl-link" (click)="openTemplateGallery.emit()">
-                  <app-icon name="sparkles" [size]="13"></app-icon>
-                  <span>Explore Gallery</span>
-                </button>
-              </div>
-              <div class="template-presets-row">
-                <button
-                  type="button"
-                  class="preset-chip"
-                  (click)="applyTemplatePreset('Agile Sprint Board', 'Structure sprint workflows with backlog, active development, code reviews, and QA testing.', 'kanban', true)"
-                >
-                  <app-icon name="zap" [size]="15"></app-icon>
-                  <span class="preset-name">Agile Sprint</span>
-                </button>
-
-                <button
-                  type="button"
-                  class="preset-chip"
-                  (click)="applyTemplatePreset('Personal Goal Tracker', 'Track yearly aspirations, quarterly milestones, active habits, and victories.', 'target', false)"
-                >
-                  <app-icon name="target" [size]="15"></app-icon>
-                  <span class="preset-name">Goal Tracker</span>
-                </button>
-
-                <button
-                  type="button"
-                  class="preset-chip"
-                  (click)="applyTemplatePreset('Content & Marketing Calendar', 'Plan, draft, review, and schedule social media posts and blog articles.', 'calendar', true)"
-                >
-                  <app-icon name="calendar" [size]="15"></app-icon>
-                  <span class="preset-name">Content Calendar</span>
-                </button>
-
-                <button
-                  type="button"
-                  class="preset-chip"
-                  (click)="applyTemplatePreset('Product Launch Roadmap', 'Execute multi-phase product launches from research to release.', 'dashboard', true)"
-                >
-                  <app-icon name="dashboard" [size]="15"></app-icon>
-                  <span class="preset-name">Product Roadmap</span>
-                </button>
-              </div>
+              <label>Start with a Premade Template (Optional)</label>
+              <button
+                type="button"
+                class="explore-gallery-btn"
+                (click)="openTemplateGallery.emit()"
+              >
+                <app-icon name="sparkles" [size]="15"></app-icon>
+                <span>Explore Template Gallery</span>
+              </button>
             </div>
           }
 
@@ -291,57 +256,35 @@ import { ButtonComponent } from '../button/button.component';
       }
     }
 
-    .template-header-label {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-
-      .explore-tpl-link {
-        background: transparent;
-        border: none;
-        color: var(--primary);
-        font-size: 0.78rem;
-        font-weight: 800;
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        gap: 5px;
-        &:hover { text-decoration: underline; }
-      }
-    }
-
-    .template-presets-row {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 8px;
-    }
-
-    .preset-chip {
+    .explore-gallery-btn {
+      width: 100%;
       background: var(--background);
-      border: 1.5px solid var(--border);
+      border: 1.5px dashed var(--primary);
       border-radius: var(--radius-md);
-      padding: 8px 10px;
+      padding: 11px 16px;
       display: flex;
       align-items: center;
-      gap: 7px;
+      justify-content: center;
+      gap: 8px;
+      color: var(--primary);
+      font-size: 0.85rem;
+      font-weight: 800;
       cursor: pointer;
-      text-align: left;
-      transition: all 0.18s ease;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 
-      .preset-emoji { font-size: 0.95rem; }
-      .preset-name {
-        font-size: 0.78rem;
-        font-weight: 800;
-        color: var(--text);
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
+      app-icon {
+        color: var(--primary);
+        transition: transform 0.25s var(--transition-spring);
       }
 
       &:hover {
-        border-color: var(--primary);
         background: var(--primary-light);
-        .preset-name { color: var(--primary); }
+        border-style: solid;
+        color: var(--primary-hover);
+        
+        app-icon {
+          transform: rotate(15deg) scale(1.1);
+        }
       }
     }
 
@@ -378,12 +321,7 @@ export class BoardDialogComponent implements OnInit {
     this.isGroup = this.initialIsGroup || false;
   }
 
-  applyTemplatePreset(name: string, description: string, icon: IconName, isGroup: boolean): void {
-    this.boardName = name;
-    this.boardDescription = description;
-    this.selectedIcon = icon;
-    this.isGroup = isGroup;
-  }
+
 
   submitForm(): void {
     if (this.boardName.trim()) {
